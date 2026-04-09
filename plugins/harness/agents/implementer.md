@@ -45,9 +45,31 @@ Check the exit code (`$?`):
 - Exit 0 → read `<session-dir>/impl-log.md` to verify what was done, then proceed to the completion report.
 - Non-zero exit → fall back to direct editing (Step 3).
 
-### If CODEX_NOT_AVAILABLE (or codex failed)
+### If CODEX_NOT_AVAILABLE
 
-Proceed to Step 3.
+Check if the user has already been prompted about codex this session:
+```bash
+test -f "<session-dir>/.codex-prompted" && echo "ALREADY_PROMPTED" || echo "FIRST_TIME"
+```
+
+**If FIRST_TIME**: Create the marker and prompt the user:
+```bash
+touch "<session-dir>/.codex-prompted"
+```
+
+Then output:
+```
+⚠️  codex CLI를 찾을 수 없습니다.
+
+codex를 설치하면 더 강력한 모델로 구현할 수 있습니다.
+설치 방법: https://github.com/openai/codex
+
+설치 후 다시 실행하거나, 지금 Claude로 직접 구현하려면 계속하세요.
+```
+
+Wait for user confirmation before proceeding to Step 3. If the user says they've installed codex, re-run the detection step. If the user says to continue, proceed to Step 3.
+
+**If ALREADY_PROMPTED** (or codex failed after being available): Proceed to Step 3 silently.
 
 ## Step 3: Direct implementation
 
