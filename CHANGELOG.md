@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1
+
+- Migrate `harness` orchestrator from agent to skill (`plugins/harness/skills/harness/SKILL.md`). Users can now invoke the full workflow via `/harness <문제>` — the previous `/agent:harness` syntax was invalid in Claude Code.
+- Add `auto-update` hook (`check_updates.py`) that checks for new plugin versions on startup.
+- Add `CLAUDE.md` with commit conventions (Conventional Commits) and release/tag procedures.
+
 ## 0.2.0
 
 - Add multi-agent engineering workflow: `investigator → architect → challenger → implementer → reviewer`.
