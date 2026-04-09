@@ -1,12 +1,12 @@
 {
   "name": "harness",
-  "version": "0.1.2",
-  "description": "Safety hooks (dangerous-command blocking, sensitive-file protection, audit logging) and a reviewer subagent for Claude Code.",
+  "version": "0.2.0",
+  "description": "Safety hooks and a multi-agent engineering workflow (investigate → architect → challenge → implement → review) for Claude Code.",
   "author": {
     "name": "LJS0000",
     "email": "leejisu2281@gmail.com"
   },
   "repository": "https://github.com/LJS0000/claude-harness",
   "license": "MIT",
-  "keywords": ["safety", "hooks", "audit", "review", "guardrail"]
+  "keywords": ["safety", "hooks", "audit", "review", "guardrail", "multi-agent", "workflow", "investigator", "architect"]
 }
