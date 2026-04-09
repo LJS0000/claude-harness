@@ -1,7 +1,7 @@
 ---
 name: harness
 description: 자연어 문제 설명을 받아 investigator→architect→challenger→implementer→reviewer 순으로 서브에이전트를 호출하는 오케스트레이터.
-model: claude-sonnet-4-6
+model: claude-opus-4-6
 tools: Agent, Read, Bash
 ---
 
@@ -101,9 +101,23 @@ When the user replies with a choice:
 
 Use Write or Bash to create the file.
 
-## Step 7: implementer 호출
+## Step 7: 난이도 평가 및 implementer 호출
 
-Call `Agent("implementer", context_string + "\n선택된 방향: <user's choice>")`.
+Based on `investigation.md` and `chosen-plan.md`, assess implementation difficulty:
+
+| 난이도 | 기준 | Claude 모델 |
+|--------|------|-------------|
+| **단순** | 영향 파일 1-2개, 설정·텍스트·스타일 변경 | `claude-haiku-4-5` |
+| **보통** | 영향 파일 2-5개, 일반적인 기능 구현 | `claude-sonnet-4-6` |
+| **복잡** | 영향 파일 5개+, 아키텍처 변경, 알고리즘·동시성 관련 | `claude-opus-4-6` |
+
+Announce the assessment:
+```
+구현 난이도: <단순/보통/복잡>
+사용 모델: <model-id>  (codex 미설치 시 fallback)
+```
+
+Call `Agent("implementer", context_string + "\n선택된 방향: <user's choice>", model="<chosen-model-id>")`.
 
 ## Step 8: plan을 ~/.claude/plans/ 에 복사
 
