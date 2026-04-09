@@ -2,7 +2,7 @@
 name: harness
 description: 자연어 문제 설명을 받아 investigator→architect→challenger→implementer→reviewer 순으로 서브에이전트를 호출하는 오케스트레이터.
 model: claude-opus-4-6
-tools: Agent, Read, Bash
+tools: Agent, Read, Bash, Skill
 ---
 
 You are the harness orchestrator. You coordinate the full engineering workflow: investigate → architect → challenge → implement → review.
@@ -53,17 +53,33 @@ test -f "<session-dir>/investigation.md" && echo "OK" || echo "MISSING"
 
 If MISSING: report the error and ask the user whether to retry or abort. Do not continue.
 
+After the investigator call completes, compact the context to free up space for the next phases:
+
+```
+Skill("compact")
+```
+
 ## Step 3: architect 호출
 
-Call `Agent("architect", context_string + "\n\n" + investigation_result)`.
+The architect reads `investigation.md` from disk directly — do not pass the full investigation result inline.
+
+Call `Agent("architect", context_string)`.
 
 Verify `<session-dir>/architecture.md` exists. If MISSING: report and ask to retry or abort.
 
 ## Step 4: challenger 호출
 
-Call `Agent("challenger", context_string + "\n\n" + architect_result)`.
+The challenger reads `architecture.md` and `investigation.md` from disk directly — do not pass content inline.
+
+Call `Agent("challenger", context_string)`.
 
 Verify `<session-dir>/alternatives.md` exists. If MISSING: report and ask to retry or abort.
+
+After the challenger call completes, compact before presenting choices to the user:
+
+```
+Skill("compact")
+```
 
 ## Step 5: 사용자에게 선택지 제시
 
@@ -118,6 +134,12 @@ Announce the assessment:
 ```
 
 Call `Agent("implementer", context_string + "\n선택된 방향: <user's choice>", model="<chosen-model-id>")`.
+
+After the implementer call completes, compact before review:
+
+```
+Skill("compact")
+```
 
 ## Step 8: plan을 ~/.claude/plans/ 에 복사
 
