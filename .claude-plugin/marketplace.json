@@ -9,8 +9,8 @@
   "plugins": [
     {
       "name": "harness",
-      "description": "Safety hooks (dangerous-command blocking, sensitive-file protection, audit logging) and a reviewer subagent.",
-      "version": "0.1.2",
+      "description": "Safety hooks (dangerous-command blocking, sensitive-file protection, audit logging) and a multi-agent engineering workflow (investigate → architect → challenge → implement → review).",
+      "version": "0.2.0",
       "category": "security",
       "source": "./plugins/harness"
     }

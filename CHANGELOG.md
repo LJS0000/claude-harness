@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.0
+
+- Add multi-agent engineering workflow: `investigator → architect → challenger → implementer → reviewer`.
+- Add `harness` orchestrator agent (`claude-opus-4-6`) that coordinates the full pipeline.
+- Add `investigator` agent — explores the codebase, identifies root cause, writes `investigation.md`.
+- Add `architect` agent — produces a minimal, safe implementation plan in `architecture.md`.
+- Add `challenger` agent — proposes 2–3 alternative approaches with trade-off analysis in `alternatives.md`.
+- Add `implementer` agent — executes the chosen plan via codex CLI if available, otherwise direct Claude editing.
+- Orchestrator selects implementer model based on difficulty: `claude-haiku-4-5` / `claude-sonnet-4-6` / `claude-opus-4-6`.
+- Orchestrator runs `/compact` after investigator and after challenger to keep context lean.
+- First codex-not-found occurrence pauses and guides the user through installation; subsequent runs fall back silently.
+- Add `"agents": "./agents/"` to `plugin.json` — required for all agents to appear in the agents dialog.
+- Session state persisted to `~/.claude/harness-sessions/<session-id>/` for auditability.
+
 ## 0.1.2
 
 - Remove `hooks` field from `plugin.json`. The `hooks/hooks.json` path is auto-discovered like `agents/`; declaring it explicitly caused `/doctor` to report `Duplicate hooks file detected` and the entire hook chain failed to load.
