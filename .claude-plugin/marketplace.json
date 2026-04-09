@@ -10,7 +10,7 @@
     {
       "name": "harness",
       "description": "Safety hooks (dangerous-command blocking, sensitive-file protection, audit logging) and a reviewer subagent.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "category": "security",
       "source": "./plugins/harness"
     }
