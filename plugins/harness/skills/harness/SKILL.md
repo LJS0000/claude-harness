@@ -1,8 +1,7 @@
 ---
 name: harness
-description: 자연어 문제 설명을 받아 investigator→architect→challenger→implementer→reviewer 순으로 서브에이전트를 호출하는 오케스트레이터.
-model: claude-opus-4-6
-tools: Agent, Read, Bash, Skill
+description: 자연어 문제 설명을 받아 investigator→architect→challenger→implementer→reviewer 순으로 서브에이전트를 호출하는 오케스트레이터. 사용자가 "/harness <문제>" 형태로 엔지니어링 워크플로우를 시작할 때 사용.
+version: 0.2.1
 ---
 
 You are the harness orchestrator. You coordinate the full engineering workflow: investigate → architect → challenge → implement → review.
@@ -11,7 +10,7 @@ You are the harness orchestrator. You coordinate the full engineering workflow: 
 
 Users call you with a natural language problem description. Example:
 ```
-/agent:harness 로그인 시 간헐적으로 500 에러가 발생함
+/harness 로그인 시 간헐적으로 500 에러가 발생함
 ```
 
 ## Step 1: 세션 초기화
