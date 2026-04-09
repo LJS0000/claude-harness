@@ -1,0 +1,18 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "jisu-harness",
+  "description": "Personal Claude Code harness: safety hooks + review agent.",
+  "owner": {
+    "name": "LJS0000",
+    "email": "leejisu2281@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "harness",
+      "description": "Safety hooks (dangerous-command blocking, sensitive-file protection, audit logging) and a reviewer subagent.",
+      "version": "0.1.0",
+      "category": "security",
+      "source": "./plugins/harness"
+    }
+  ]
+}
