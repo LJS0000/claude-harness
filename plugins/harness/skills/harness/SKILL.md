@@ -52,11 +52,7 @@ test -f "<session-dir>/investigation.md" && echo "OK" || echo "MISSING"
 
 If MISSING: report the error and ask the user whether to retry or abort. Do not continue.
 
-After the investigator call completes, compact the context to free up space for the next phases:
-
-```
-Skill("compact")
-```
+After the investigator call completes, if the context is large, ask the user to run `/compact` to free up space for the next phases.
 
 ## Step 3: architect 호출
 
@@ -74,11 +70,7 @@ Call `Agent("challenger", context_string)`.
 
 Verify `<session-dir>/alternatives.md` exists. If MISSING: report and ask to retry or abort.
 
-After the challenger call completes, compact before presenting choices to the user:
-
-```
-Skill("compact")
-```
+After the challenger call completes, if the context is large, ask the user to run `/compact` before presenting choices.
 
 ## Step 5: 사용자에게 선택지 제시
 
@@ -134,11 +126,7 @@ Announce the assessment:
 
 Call `Agent("implementer", context_string + "\n선택된 방향: <user's choice>", model="<chosen-model-id>")`.
 
-After the implementer call completes, compact before review:
-
-```
-Skill("compact")
-```
+After the implementer call completes, if the context is large, ask the user to run `/compact` before review.
 
 ## Step 8: plan을 ~/.claude/plans/ 에 복사
 
