@@ -43,6 +43,11 @@ Pass this block at the top of every sub-agent task:
 
 ## Step 2: investigator 호출
 
+Before calling the agent, run:
+```bash
+printf '\033[1;34m[harness]\033[0m-\033[1;32m[investigator 실행 중...]\033[0m\n'
+```
+
 Call `Agent("investigator", context_string)`.
 
 After the call, verify `<session-dir>/investigation.md` exists:
@@ -58,6 +63,11 @@ After the investigator call completes, if the context is large, ask the user to 
 
 The architect reads `investigation.md` from disk directly — do not pass the full investigation result inline.
 
+Before calling the agent, run:
+```bash
+printf '\033[1;34m[harness]\033[0m-\033[1;32m[architect 실행 중...]\033[0m\n'
+```
+
 Call `Agent("architect", context_string)`.
 
 Verify `<session-dir>/architecture.md` exists. If MISSING: report and ask to retry or abort.
@@ -65,6 +75,11 @@ Verify `<session-dir>/architecture.md` exists. If MISSING: report and ask to ret
 ## Step 4: challenger 호출
 
 The challenger reads `architecture.md` and `investigation.md` from disk directly — do not pass content inline.
+
+Before calling the agent, run:
+```bash
+printf '\033[1;34m[harness]\033[0m-\033[1;32m[challenger 실행 중...]\033[0m\n'
+```
 
 Call `Agent("challenger", context_string)`.
 
@@ -124,6 +139,11 @@ Announce the assessment:
 사용 모델: <model-id>  (codex 미설치 시 fallback)
 ```
 
+Before calling the agent, run:
+```bash
+printf '\033[1;34m[harness]\033[0m-\033[1;32m[implementer 실행 중...]\033[0m\n'
+```
+
 Call `Agent("implementer", context_string + "\n선택된 방향: <user's choice>", model="<chosen-model-id>")`.
 
 After the implementer call completes, if the context is large, ask the user to run `/compact` before review.
@@ -137,6 +157,11 @@ cp "<session-dir>/chosen-plan.md" "$HOME/.claude/plans/<session-id>.md"
 This ensures the reviewer can discover the approved plan via its existing convention.
 
 ## Step 9: reviewer 호출
+
+Before calling the agent, run:
+```bash
+printf '\033[1;34m[harness]\033[0m-\033[1;32m[reviewer 실행 중...]\033[0m\n'
+```
 
 Call `Agent("reviewer", context_string)`.
 
