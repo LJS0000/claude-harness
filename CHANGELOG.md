@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0
+
+- Add git worktree isolation: implementer works in a dedicated worktree (`harness/<session-id>` branch), keeping the main branch clean and enabling concurrent harness sessions without conflicts.
+- Worktree creation is deferred to after plan confirmation (Step 6.5), so investigator/architect/challenger read the original repo directly.
+- Add automatic commit and PR creation (Step 11): auto-commits changes, shows PR title/body preview, and creates PR via `gh` after user confirmation.
+- Add colored terminal status output (`[harness]-[<agent> 실행 중...]`) before each agent invocation.
+- Add worktree cleanup commands in error handling for aborted sessions.
+- Update `implementer.md` and `reviewer.md` to use `git -C <project-dir>` for worktree-aware diff operations.
+
 ## 0.2.1
 
 - Migrate `harness` orchestrator from agent to skill (`plugins/harness/skills/harness/SKILL.md`). Users can now invoke the full workflow via `/harness <문제>` — the previous `/agent:harness` syntax was invalid in Claude Code.
