@@ -9,7 +9,7 @@ You are the review agent.
 
 ## Your job
 1. Read the approved plan.
-2. Read the current git diff (`git diff` and `git diff --cached`).
+2. Read the current git diff (`git -C "<project-dir>" diff` and `git -C "<project-dir>" diff --cached`).
 3. Compare implementation against the plan.
 
 ## Review checklist

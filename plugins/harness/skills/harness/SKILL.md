@@ -123,6 +123,26 @@ When the user replies with a choice:
 
 Use Write or Bash to create the file.
 
+## Step 6.5: Worktree 생성
+
+현재 디렉터리가 git 저장소인 경우에만 실행:
+
+```bash
+BRANCH="harness/$SESSION_ID"
+WORKTREE_DIR="$HOME/.claude/harness-worktrees/$SESSION_ID"
+git -C "$PROJECT_DIR" worktree add -b "$BRANCH" "$WORKTREE_DIR"
+echo "WORKTREE_DIR=$WORKTREE_DIR"
+```
+
+git 저장소가 아니면 WORKTREE_DIR을 PROJECT_DIR과 동일하게 설정한다.
+
+Announce:
+```
+워크트리 생성 완료: <worktree-dir> (브랜치: harness/<session-id>)
+```
+
+이후 Step 7~9에서는 context_string의 `[PROJECT DIR:]` 값을 WORKTREE_DIR로 교체하여 전달한다.
+
 ## Step 7: 난이도 평가 및 implementer 호출
 
 Based on `investigation.md` and `chosen-plan.md`, assess implementation difficulty:
@@ -144,7 +164,17 @@ Before calling the agent, run:
 printf '\033[1;34m[harness]\033[0m-\033[1;32m[implementer 실행 중...]\033[0m\n'
 ```
 
-Call `Agent("implementer", context_string + "\n선택된 방향: <user's choice>", model="<chosen-model-id>")`.
+Pass the following context to the implementer (note `[PROJECT DIR:]` is the worktree path, `[ORIGIN DIR:]` is the original project path):
+```
+[HARNESS SESSION: <session-id>]
+[SESSION DIR: <session-dir>]
+[PROJECT DIR: <worktree-dir>]
+[ORIGIN DIR: <project-dir>]
+문제: <original problem description>
+선택된 방향: <user's choice>
+```
+
+Call `Agent("implementer", context_string_with_worktree + "\n선택된 방향: <user's choice>", model="<chosen-model-id>")`.
 
 After the implementer call completes, if the context is large, ask the user to run `/compact` before review.
 
@@ -163,7 +193,16 @@ Before calling the agent, run:
 printf '\033[1;34m[harness]\033[0m-\033[1;32m[reviewer 실행 중...]\033[0m\n'
 ```
 
-Call `Agent("reviewer", context_string)`.
+Pass the same worktree-based context to the reviewer (same as Step 7):
+```
+[HARNESS SESSION: <session-id>]
+[SESSION DIR: <session-dir>]
+[PROJECT DIR: <worktree-dir>]
+[ORIGIN DIR: <project-dir>]
+문제: <original problem description>
+```
+
+Call `Agent("reviewer", context_string_with_worktree)`.
 
 The reviewer will find the plan at `~/.claude/plans/<session-id>.md` automatically.
 
@@ -184,11 +223,73 @@ Output:
 세션 파일: <session-dir>
 ```
 
+## Step 11: 자동 커밋 및 PR 생성
+
+리뷰 결과가 PASS이고 worktree가 생성된 경우에만 실행.
+
+### 11-A. 자동 커밋
+
+```bash
+cd "<worktree-dir>"
+git add -A
+git commit -m "<conventional-commit-message>"
+```
+
+커밋 메시지는 chosen-plan.md의 목표를 기반으로 Conventional Commits 형식으로 작성.
+
+### 11-B. PR 미리보기 및 사용자 확인
+
+세션 파일(investigation.md, chosen-plan.md)을 바탕으로 PR 제목과 본문을 구성하고 사용자에게 보여준다:
+
+```
+## PR 미리보기
+
+**제목:** <pr-title>
+**브랜치:** harness/<session-id> → main
+
+**본문:**
+## 변경 배경
+<investigation.md 요약>
+
+## 구현 방향
+<chosen-plan.md 요약>
+
+---
+_하네스 세션 <session-id>에서 자동 생성_
+
+이대로 PR을 생성하시겠습니까? (y/n, 또는 수정 사항을 입력해 주세요)
+```
+
+**사용자가 y 응답 시:**
+```bash
+git push origin "harness/<session-id>"
+gh pr create --base main --head "harness/<session-id>" --title "$PR_TITLE" --body "$PR_BODY"
+```
+
+**사용자가 n 또는 수정 요청 시:** 수정 반영 후 다시 미리보기 제시.
+
+**gh 미설치 시:** 브랜치명, 제목, 본문 후보를 출력하여 수동 PR 생성 안내.
+
+### 11-C. 정리 안내
+
+PR 생성 성공 후:
+```
+PR merge 후 정리:
+git worktree remove "$HOME/.claude/harness-worktrees/<session-id>"
+git branch -d "harness/<session-id>"
+```
+
 ## Error handling
 
 At any step, if a sub-agent returns a clear failure or a session file is missing:
 1. Report exactly what failed.
 2. Ask the user: "재시도하시겠습니까, 아니면 중단하시겠습니까?"
 3. Wait for their answer before proceeding.
+
+중단 선택 시 worktree 정리:
+```bash
+git -C "<project-dir>" worktree remove --force "$HOME/.claude/harness-worktrees/<session-id>" 2>/dev/null || true
+git -C "<project-dir>" branch -D "harness/<session-id>" 2>/dev/null || true
+```
 
 Do not silently skip a failed step and continue to the next.

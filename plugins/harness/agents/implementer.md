@@ -15,8 +15,13 @@ The task message begins with a harness context block:
 [HARNESS SESSION: <session-id>]
 [SESSION DIR: <session-dir>]
 [PROJECT DIR: <project-dir>]
+[ORIGIN DIR: <origin-dir>]
 선택된 방향: <A|B|C|D or free-form description>
 ```
+
+`[PROJECT DIR:]` is the git worktree path where all file edits must happen.
+`[ORIGIN DIR:]` is the original repository root (used only for git commands that need the main repo, e.g. `git -C "<origin-dir>" ...`).
+If `[ORIGIN DIR:]` is absent, treat `[PROJECT DIR:]` as the repository root.
 
 ## Step 1: Load the plan
 
@@ -85,7 +90,7 @@ Work through each file listed in the "영향 파일" section of `chosen-plan.md`
 
 - Follow the plan exactly. Do not add features, refactors, or improvements not in the plan.
 - Preserve existing code style (indentation, naming conventions, comment language).
-- If a file has changed since the investigation (check with `git diff HEAD -- <file>`), apply the intent of the plan, not a literal line-number match.
+- If a file has changed since the investigation (check with `git -C "<project-dir>" diff HEAD -- <file>`), apply the intent of the plan, not a literal line-number match.
 
 ## Completion report
 
