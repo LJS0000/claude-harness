@@ -72,6 +72,7 @@ def main():
     try:
         _update_dir(PLUGIN_PATH_IN_REPO + "/agents", Path(install_path) / "agents")
         _update_dir(PLUGIN_PATH_IN_REPO + "/hooks", Path(install_path) / "hooks")
+        _update_dir(PLUGIN_PATH_IN_REPO + "/skills", Path(install_path) / "skills")
 
         # Update installed_plugins.json
         install_info["version"] = latest_version
@@ -84,20 +85,20 @@ def main():
 
 
 def _update_dir(repo_path, local_dir):
-    """Download all files in a GitHub directory and write them to local_dir."""
+    """Download all files in a GitHub directory recursively."""
     api_url = f"https://api.github.com/repos/{REPO}/contents/{repo_path}"
-    files = fetch_json(api_url)
+    entries = fetch_json(api_url)
     local_dir.mkdir(parents=True, exist_ok=True)
 
-    for file_info in files:
-        if file_info.get("type") != "file":
-            continue
-        download_url = file_info["download_url"]
-        filename = file_info["name"]
-        req = urllib.request.Request(download_url, headers={"User-Agent": "claude-harness-updater/1.0"})
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            content = resp.read()
-        (local_dir / filename).write_bytes(content)
+    for entry in entries:
+        if entry.get("type") == "dir":
+            _update_dir(entry["path"], local_dir / entry["name"])
+        elif entry.get("type") == "file":
+            download_url = entry["download_url"]
+            req = urllib.request.Request(download_url, headers={"User-Agent": "claude-harness-updater/1.0"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                content = resp.read()
+            (local_dir / entry["name"]).write_bytes(content)
 
 
 def _version_tuple(version_str):
