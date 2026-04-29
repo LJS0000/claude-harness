@@ -52,9 +52,47 @@ refactor(harness): simplify pipeline stage transitions
 
 ---
 
+## 커밋별 버전 관리 규칙
+
+**모든 커밋 시 아래 규칙에 따라 버전을 판단하고, 버전 변경이 필요한 경우 릴리즈 절차를 함께 수행합니다.**
+
+### 커밋 타입 → 버전 매핑
+
+| 커밋 타입 | 버전 변경 | 설명 |
+|-----------|-----------|------|
+| `feat` | **MINOR** bump | 새 기능은 항상 MINOR 버전을 올림 |
+| `fix` | **PATCH** bump | 버그 수정은 PATCH 버전을 올림 |
+| `refactor` | **PATCH** bump | 코드 개선은 PATCH 버전을 올림 |
+| `docs` | 버전 변경 없음 | 문서만 변경한 경우 버전 유지 |
+| `chore` | 버전 변경 없음 | 빌드/설정 변경은 버전 유지 (단, 버전 bump 커밋 자체는 예외) |
+
+### Breaking Change 규칙
+
+- 커밋 메시지에 `BREAKING CHANGE:` footer가 있거나 타입 뒤에 `!`가 붙으면 **MAJOR** bump
+- 예: `feat!: remove legacy auth middleware` → MAJOR bump
+- 단, `MAJOR`가 `0`인 동안은 breaking change도 **MINOR** bump으로 처리 (pre-1.0 단계)
+
+### 버전 변경 절차
+
+버전 변경이 필요한 커밋(`feat`, `fix`, `refactor`) 시:
+
+1. 해당 기능/수정 커밋을 먼저 작성
+2. 이어서 릴리즈 절차를 수행 (아래 참조)
+
+### 버전 변경이 누적된 경우
+
+여러 커밋을 한 번에 작업한 경우, **가장 높은 우선순위의 변경**을 기준으로 한 번만 버전을 올림:
+- `feat` + `fix` 조합 → MINOR bump (feat 우선)
+- `fix` + `refactor` 조합 → PATCH bump (둘 다 PATCH)
+- `feat` + `feat` 조합 → MINOR bump (한 번만)
+
+---
+
 ## 릴리즈 절차
 
-1. `CHANGELOG.md` 업데이트
+버전 변경이 필요할 때 아래 순서를 따릅니다:
+
+1. `CHANGELOG.md` 업데이트 — 새 버전 섹션 추가, 변경 내용 기록
 2. `plugins/harness/.claude-plugin/plugin.json` 버전 업데이트
 3. `.claude-plugin/marketplace.json` 버전 업데이트
 4. 버전 bump 커밋 작성:
@@ -70,6 +108,14 @@ refactor(harness): simplify pipeline stage transitions
    git push origin main
    git push origin v<version>
    ```
+
+### 버전이 기록되는 파일 목록
+
+| 파일 | 필드 |
+|------|------|
+| `plugins/harness/.claude-plugin/plugin.json` | `"version"` |
+| `.claude-plugin/marketplace.json` | `plugins[0].version` |
+| `CHANGELOG.md` | 최상단 버전 섹션 헤더 |
 
 ---
 
