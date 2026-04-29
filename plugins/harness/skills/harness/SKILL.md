@@ -152,7 +152,7 @@ Based on `investigation.md` and `chosen-plan.md`, assess implementation difficul
 Announce the assessment:
 ```
 구현 난이도: <단순/보통/복잡>
-사용 모델: <model-id>  (codex 미설치 시 fallback)
+사용 모델: <model-id>
 ```
 
 Before calling the agent, run:
