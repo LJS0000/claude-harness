@@ -20,6 +20,45 @@ Generate a session ID and create the session directory:
 SESSION_ID=$(date +%Y%m%d-%H%M%S)
 SESSION_DIR="$HOME/.claude/harness-sessions/$SESSION_ID"
 mkdir -p "$SESSION_DIR"
+echo '{"session":"'"$SESSION_ID"'","agents":[]}' > "$SESSION_DIR/usage.json"
+cat > "$SESSION_DIR/record_usage.py" << 'PYEOF'
+import json, sys, os, subprocess
+label = os.environ.get("AGENT_LABEL", "unknown")
+session_dir = os.environ.get("SESSION_DIR", "")
+project_dir = os.environ.get("PROJECT_DIR", "")
+usage_file = os.path.join(session_dir, "usage.json")
+project_hash = project_dir.lstrip("/").replace("/", "-")
+subagent_dir = os.path.expanduser(f"~/.claude/projects/{project_hash}/sessions")
+result = subprocess.run(
+    ["find", subagent_dir, "-name", "agent-*.jsonl", "-newer", usage_file],
+    capture_output=True, text=True)
+files = [f for f in result.stdout.strip().splitlines() if f]
+latest = sorted(files)[-1] if files else ""
+totals = {"input_tokens": 0, "output_tokens": 0,
+          "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0}
+if latest:
+    try:
+        with open(latest) as f:
+            for line in f:
+                obj = json.loads(line)
+                u = obj.get("usage") or obj.get("message", {}).get("usage", {})
+                for k in totals:
+                    totals[k] += u.get(k, 0) if u else 0
+    except Exception as e:
+        print(f"usage parse error: {e}", file=sys.stderr)
+data = {"agents": []}
+try:
+    with open(usage_file) as f:
+        data = json.load(f)
+except Exception:
+    pass
+data["agents"].append({"agent": label, "usage": totals})
+with open(usage_file, "w") as f:
+    json.dump(data, f, ensure_ascii=False, indent=2)
+total_cache = sum(e["usage"]["cache_read_input_tokens"] for e in data["agents"])
+if total_cache > 1_000_000:
+    print(f"⚠️ 누적 cache_read {total_cache:,} 토큰 — /compact 실행을 권장합니다.")
+PYEOF
 echo "$SESSION_ID"
 ```
 
@@ -57,6 +96,11 @@ test -f "<session-dir>/investigation.md" && echo "OK" || echo "MISSING"
 
 If MISSING: report the error and ask the user whether to retry or abort. Do not continue.
 
+Record token usage:
+```bash
+AGENT_LABEL="investigator" SESSION_DIR="<session-dir>" PROJECT_DIR="<project-dir>" python3 "<session-dir>/record_usage.py"
+```
+
 ## Step 3: architect 호출
 
 The architect reads `investigation.md` from disk directly — do not pass the full investigation result inline.
@@ -70,6 +114,11 @@ Call `Agent("architect", context_string)`.
 
 Verify `<session-dir>/architecture.md` exists. If MISSING: report and ask to retry or abort.
 
+Record token usage:
+```bash
+AGENT_LABEL="architect" SESSION_DIR="<session-dir>" PROJECT_DIR="<project-dir>" python3 "<session-dir>/record_usage.py"
+```
+
 ## Step 4: challenger 호출
 
 The challenger reads `architecture.md` and `investigation.md` from disk directly — do not pass content inline.
@@ -82,6 +131,11 @@ printf '\033[1;34m[harness]\033[0m-\033[1;32m[challenger 실행 중...]\033[0m\n
 Call `Agent("challenger", context_string)`.
 
 Verify `<session-dir>/alternatives.md` exists. If MISSING: report and ask to retry or abort.
+
+Record token usage:
+```bash
+AGENT_LABEL="challenger" SESSION_DIR="<session-dir>" PROJECT_DIR="<project-dir>" python3 "<session-dir>/record_usage.py"
+```
 
 ## Step 5: 사용자에게 선택지 제시
 
@@ -172,6 +226,11 @@ Pass the following context to the implementer (note `[PROJECT DIR:]` is the work
 
 Call `Agent("implementer", context_string_with_worktree + "\n선택된 방향: <user's choice>", model="<chosen-model-id>")`.
 
+Record token usage:
+```bash
+AGENT_LABEL="implementer" SESSION_DIR="<session-dir>" PROJECT_DIR="<worktree-dir>" python3 "<session-dir>/record_usage.py"
+```
+
 ## Step 8: plan을 ~/.claude/plans/ 에 복사
 
 ```bash
@@ -200,6 +259,11 @@ Call `Agent("reviewer", context_string_with_worktree)`.
 
 The reviewer will find the plan at `~/.claude/plans/<session-id>.md` automatically.
 
+Record token usage:
+```bash
+AGENT_LABEL="reviewer" SESSION_DIR="<session-dir>" PROJECT_DIR="<worktree-dir>" python3 "<session-dir>/record_usage.py"
+```
+
 ## Step 10: 최종 요약
 
 Output:
@@ -215,6 +279,28 @@ Output:
 <if FAIL: list the key issues from reviewer output>
 
 세션 파일: <session-dir>
+```
+
+Then output token usage summary:
+```bash
+SESSION_DIR="<session-dir>" python3 - << 'PYEOF'
+import json, os
+session_dir = os.environ.get("SESSION_DIR", "")
+usage_file = os.path.join(session_dir, "usage.json")
+try:
+    data = json.load(open(usage_file))
+    print("\n### 토큰 사용량 요약")
+    total_in = total_out = total_cache = 0
+    for entry in data.get("agents", []):
+        u = entry["usage"]
+        inp, out = u["input_tokens"], u["output_tokens"]
+        cache_r, cache_c = u["cache_read_input_tokens"], u["cache_creation_input_tokens"]
+        total_in += inp; total_out += out; total_cache += cache_r
+        print(f"- {entry['agent']}: input={inp}, output={out}, cache_read={cache_r}, cache_create={cache_c}")
+    print(f"\n합계: input={total_in}, output={total_out}, cache_read={total_cache}")
+except Exception as e:
+    print(f"(usage.json 읽기 실패: {e})")
+PYEOF
 ```
 
 ## Step 11: 자동 커밋 및 PR 생성
@@ -277,11 +363,7 @@ git branch -d "harness/<session-id>"
 
 서브에이전트의 결과는 세션 파일에 이미 기록되므로, 오케스트레이터로 반환되는 내용은 최소화한다. 서브에이전트가 긴 결과를 반환하더라도, 오케스트레이터는 **파일에서 직접 읽어** 필요한 정보를 얻는다.
 
-만약 워크플로우 진행 중 컨텍스트 사용량이 80%를 넘었다고 판단되면 (대화가 길어지거나 에이전트 결과가 큰 경우), 다음 단계로 넘어가기 전에 사용자에게 안내한다:
-
-```
-⚠️ 컨텍스트 사용량이 높습니다. 다음 단계 진행 전 `/compact` 실행을 권장합니다.
-```
+각 에이전트 호출 후 `record_usage.py`가 `<session-dir>/usage.json`에 누적 토큰 사용량을 기록한다. 누적 `cache_read_input_tokens`가 100만을 초과하면 자동으로 `/compact` 안내가 출력된다. 안내가 표시되면 다음 단계 진행 전 사용자에게 `/compact` 실행을 권장한다.
 
 ## Error handling
 
