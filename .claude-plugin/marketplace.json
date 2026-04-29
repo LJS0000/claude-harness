@@ -10,7 +10,7 @@
     {
       "name": "harness",
       "description": "Safety hooks (dangerous-command blocking, sensitive-file protection, audit logging) and a multi-agent engineering workflow (investigate → architect → challenge → implement → review).",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "category": "security",
       "source": "./plugins/harness"
     }

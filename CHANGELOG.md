@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1
+
+- Remove codex CLI dependency from implementer agent — Claude 직접 편집(Edit/Write/MultiEdit)을 유일한 구현 경로로 변경
+- Remove codex 감지, 실행, 블로킹 프롬프트 로직 제거
+- Remove SKILL.md의 "(codex 미설치 시 fallback)" 문구 제거
+
 ## 0.3.0
 
 - Add git worktree isolation: implementer works in a dedicated worktree (`harness/<session-id>` branch), keeping the main branch clean and enabling concurrent harness sessions without conflicts.
