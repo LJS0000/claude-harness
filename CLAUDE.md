@@ -122,5 +122,15 @@ refactor(harness): simplify pipeline stage transitions
 ## 태그 규칙
 
 - 형식: `v<MAJOR>.<MINOR>.<PATCH>` (예: `v0.2.1`)
-- 태그는 반드시 버전 bump 커밋에 달 것
+- **태그 생성은 릴리즈 절차의 필수 단계** — 버전 bump 커밋 후 반드시 `git tag`까지 완료할 것
 - annotated 태그 대신 lightweight 태그 사용
+- 태그는 반드시 해당 버전의 bump 커밋(`chore: bump version to <version>`)에 달 것
+- 태그 없이 push하지 않음 — bump 커밋과 태그를 함께 push:
+  ```
+  git push origin main && git push origin v<version>
+  ```
+- 태그가 누락된 과거 버전 발견 시 해당 bump 커밋에 백필:
+  ```
+  git tag v<version> <bump-commit-hash>
+  git push origin v<version>
+  ```
