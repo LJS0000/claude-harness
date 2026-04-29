@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0
+
+- Add per-agent token usage tracking — 각 서브에이전트 호출 후 JSONL 파싱으로 토큰 소비량을 `usage.json`에 누적 기록
+- Add `record_usage.py` 헬퍼 스크립트를 세션 초기화 시 자동 생성
+- Add Step 10 완료 요약에 에이전트별 토큰 통계 출력
+- Add 누적 `cache_read_input_tokens` 100만 초과 시 수치 기반 `/compact` 자동 안내
+
 ## 0.3.1
 
 - Remove codex CLI dependency from implementer agent — Claude 직접 편집(Edit/Write/MultiEdit)을 유일한 구현 경로로 변경
