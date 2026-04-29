@@ -70,4 +70,7 @@ First, write the full output to `<session-dir>/investigation.md`:
 <any relevant git history, recent changes, or architectural patterns observed>
 ```
 
-Then return the same content as your reply to the harness.
+Then return a **brief status summary only** (2-3 lines) as your reply to the harness. Do NOT return the full investigation content — it is already saved to the file. Example:
+```
+조사 완료. 문제 영역 2건 특정 (src/auth.ts:42, src/middleware.ts:88). 상세 내용은 investigation.md 참조.
+```

@@ -57,8 +57,6 @@ test -f "<session-dir>/investigation.md" && echo "OK" || echo "MISSING"
 
 If MISSING: report the error and ask the user whether to retry or abort. Do not continue.
 
-After the investigator call completes, if the context is large, ask the user to run `/compact` to free up space for the next phases.
-
 ## Step 3: architect 호출
 
 The architect reads `investigation.md` from disk directly — do not pass the full investigation result inline.
@@ -84,8 +82,6 @@ printf '\033[1;34m[harness]\033[0m-\033[1;32m[challenger 실행 중...]\033[0m\n
 Call `Agent("challenger", context_string)`.
 
 Verify `<session-dir>/alternatives.md` exists. If MISSING: report and ask to retry or abort.
-
-After the challenger call completes, if the context is large, ask the user to run `/compact` before presenting choices.
 
 ## Step 5: 사용자에게 선택지 제시
 
@@ -175,8 +171,6 @@ Pass the following context to the implementer (note `[PROJECT DIR:]` is the work
 ```
 
 Call `Agent("implementer", context_string_with_worktree + "\n선택된 방향: <user's choice>", model="<chosen-model-id>")`.
-
-After the implementer call completes, if the context is large, ask the user to run `/compact` before review.
 
 ## Step 8: plan을 ~/.claude/plans/ 에 복사
 
@@ -277,6 +271,16 @@ PR 생성 성공 후:
 PR merge 후 정리:
 git worktree remove "$HOME/.claude/harness-worktrees/<session-id>"
 git branch -d "harness/<session-id>"
+```
+
+## 컨텍스트 관리
+
+서브에이전트의 결과는 세션 파일에 이미 기록되므로, 오케스트레이터로 반환되는 내용은 최소화한다. 서브에이전트가 긴 결과를 반환하더라도, 오케스트레이터는 **파일에서 직접 읽어** 필요한 정보를 얻는다.
+
+만약 워크플로우 진행 중 컨텍스트 사용량이 80%를 넘었다고 판단되면 (대화가 길어지거나 에이전트 결과가 큰 경우), 다음 단계로 넘어가기 전에 사용자에게 안내한다:
+
+```
+⚠️ 컨텍스트 사용량이 높습니다. 다음 단계 진행 전 `/compact` 실행을 권장합니다.
 ```
 
 ## Error handling

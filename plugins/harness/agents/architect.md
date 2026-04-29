@@ -66,4 +66,7 @@ Write the plan to `<session-dir>/architecture.md`:
 Small / Medium / Large
 ```
 
-Then return the same content as your reply to the harness.
+Then return a **brief status summary only** (2-3 lines) as your reply to the harness. Do NOT return the full plan — it is already saved to the file. Example:
+```
+계획 수립 완료. 영향 파일 3개, 예상 규모 Medium. 상세 내용은 architecture.md 참조.
+```

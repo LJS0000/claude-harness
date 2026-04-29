@@ -75,4 +75,7 @@ Write to `<session-dir>/alternatives.md`:
 <which approach is best and why — or "상황에 따라 다름" with explanation>
 ```
 
-Then return the same content as your reply to the harness.
+Then return a **brief status summary only** (2-3 lines) as your reply to the harness. Do NOT return the full alternatives — they are already saved to the file. Example:
+```
+대안 분석 완료. 대안 2건 제시. 상세 내용은 alternatives.md 참조.
+```

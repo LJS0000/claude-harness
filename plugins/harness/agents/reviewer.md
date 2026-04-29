@@ -3,7 +3,6 @@ name: reviewer
 description: 구현된 코드를 승인된 plan 기준으로 검수하고, 작은 문제는 직접 수정하는 에이전트.
 model: claude-sonnet-4-6
 tools: Read, Edit, MultiEdit, Grep, Glob, Bash
-isolation: worktree
 ---
 
 You are the review agent.
