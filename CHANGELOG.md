@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0
+
+- Add `retrospective` 에이전트 — 세션 완료 후 세션 아티팩트를 분석하여 역할별 교훈을 JSON으로 `~/.claude/harness-learnings/`에 누적 저장
+- Add Step 10.5: retrospective 호출 (비블로킹, JSON 유효성 검증 포함)
+- Add Step 1 교훈 로드 — 최근 5개 세션의 교훈을 에이전트별 역할에 맞춰 선택 주입 (investigator, architect, implementer, reviewer)
+- Add context string에 `## 이전 세션 교훈` 섹션 조건부 주입
+
 ## 0.4.0
 
 - Add per-agent token usage tracking — 각 서브에이전트 호출 후 JSONL 파싱으로 토큰 소비량을 `usage.json`에 누적 기록
