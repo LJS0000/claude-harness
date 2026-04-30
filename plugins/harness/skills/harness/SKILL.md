@@ -64,10 +64,65 @@ echo "$SESSION_ID"
 
 Save the session ID, session dir, and project dir (current working directory) — you will need them throughout.
 
+After creating the session directory, load accumulated learnings from previous sessions and decode the advice variables:
+```bash
+eval "$(python3 - << 'PYEOF'
+import json, os, glob, base64
+
+learnings_dir = os.path.expanduser("~/.claude/harness-learnings")
+advice_roles = ["investigator", "architect", "implementer", "reviewer"]
+blocks = {role: [] for role in advice_roles}
+
+if os.path.isdir(learnings_dir):
+    files = sorted(glob.glob(os.path.join(learnings_dir, "*.json")))[-5:]
+    for fpath in files:
+        try:
+            with open(fpath) as f:
+                data = json.load(f)
+            sid = data.get("session_id", os.path.basename(fpath))
+            date = data.get("date", "")
+            general = data.get("general_patterns", "")
+            for role in ["investigator", "architect"]:
+                field = data.get(f"advice_for_{role}", "")
+                if field:
+                    entry = f"[{date} / {sid}] {field}"
+                    if general:
+                        entry += f" (일반 패턴: {general})"
+                    blocks[role].append(entry)
+            for role in ["implementer", "reviewer"]:
+                field = data.get(f"advice_for_{role}", "")
+                if field:
+                    blocks[role].append(f"[{date} / {sid}] {field}")
+        except Exception:
+            pass
+
+for role in advice_roles:
+    text = "\n".join(blocks[role])
+    encoded = base64.b64encode(text.encode()).decode()
+    print(f"ADVICE_{role.upper()}_B64={encoded}")
+PYEOF
+)"
+```
+
+Then decode the advice for use when building context strings:
+```bash
+ADVICE_INVESTIGATOR=$(echo "$ADVICE_INVESTIGATOR_B64" | base64 --decode 2>/dev/null || true)
+ADVICE_ARCHITECT=$(echo "$ADVICE_ARCHITECT_B64" | base64 --decode 2>/dev/null || true)
+ADVICE_IMPLEMENTER=$(echo "$ADVICE_IMPLEMENTER_B64" | base64 --decode 2>/dev/null || true)
+ADVICE_REVIEWER=$(echo "$ADVICE_REVIEWER_B64" | base64 --decode 2>/dev/null || true)
+```
+
+Store these decoded values — you will append them to each agent's context string if non-empty.
+
 Announce to the user:
 ```
 하네스 세션 시작: <session-id>
 세션 디렉토리: <session-dir>
+```
+
+If any `ADVICE_*` variable is non-empty, also announce:
+```
+이전 세션 교훈 로드됨 (investigator/architect/implementer/reviewer 각 대상)
 ```
 
 ## Context string format
@@ -80,11 +135,27 @@ Pass this block at the top of every sub-agent task:
 문제: <original problem description>
 ```
 
+When learnings are available (see Step 1), append the relevant advice section for each agent role:
+```
+[HARNESS SESSION: <session-id>]
+[SESSION DIR: <session-dir>]
+[PROJECT DIR: <project-dir>]
+문제: <original problem description>
+
+## 이전 세션 교훈 (이 에이전트 대상)
+<역할별 필터링된 advice 내용>
+```
+
 ## Step 2: investigator 호출
 
 Before calling the agent, run:
 ```bash
 printf '\033[1;34m[harness]\033[0m-\033[1;32m[investigator 실행 중...]\033[0m\n'
+```
+
+Build the investigator context string. If `$ADVICE_INVESTIGATOR` is non-empty, append:
+```
+\n\n## 이전 세션 교훈 (이 에이전트 대상)\n<$ADVICE_INVESTIGATOR>
 ```
 
 Call `Agent("investigator", context_string)`.
@@ -110,6 +181,11 @@ Before calling the agent, run:
 printf '\033[1;34m[harness]\033[0m-\033[1;32m[architect 실행 중...]\033[0m\n'
 ```
 
+Build the architect context string. If `$ADVICE_ARCHITECT` is non-empty, append:
+```
+\n\n## 이전 세션 교훈 (이 에이전트 대상)\n<$ADVICE_ARCHITECT>
+```
+
 Call `Agent("architect", context_string)`.
 
 Verify `<session-dir>/architecture.md` exists. If MISSING: report and ask to retry or abort.
@@ -127,6 +203,8 @@ Before calling the agent, run:
 ```bash
 printf '\033[1;34m[harness]\033[0m-\033[1;32m[challenger 실행 중...]\033[0m\n'
 ```
+
+The challenger does not receive targeted learnings — call with the standard context string.
 
 Call `Agent("challenger", context_string)`.
 
@@ -224,6 +302,11 @@ Pass the following context to the implementer (note `[PROJECT DIR:]` is the work
 선택된 방향: <user's choice>
 ```
 
+Build the implementer context string starting from `context_string_with_worktree + "\n선택된 방향: <user's choice>"`. If `$ADVICE_IMPLEMENTER` is non-empty, append:
+```
+\n\n## 이전 세션 교훈 (이 에이전트 대상)\n<$ADVICE_IMPLEMENTER>
+```
+
 Call `Agent("implementer", context_string_with_worktree + "\n선택된 방향: <user's choice>", model="<chosen-model-id>")`.
 
 Record token usage:
@@ -253,6 +336,11 @@ Pass the same worktree-based context to the reviewer (same as Step 7):
 [PROJECT DIR: <worktree-dir>]
 [ORIGIN DIR: <project-dir>]
 문제: <original problem description>
+```
+
+Build the reviewer context string from `context_string_with_worktree`. If `$ADVICE_REVIEWER` is non-empty, append:
+```
+\n\n## 이전 세션 교훈 (이 에이전트 대상)\n<$ADVICE_REVIEWER>
 ```
 
 Call `Agent("reviewer", context_string_with_worktree)`.
@@ -302,6 +390,64 @@ except Exception as e:
     print(f"(usage.json 읽기 실패: {e})")
 PYEOF
 ```
+
+## Step 10.5: retrospective 호출
+
+After the final summary (Step 10), invoke the retrospective agent to save lessons learned. This step is non-blocking — if it fails, log a warning and continue to Step 11.
+
+Before calling the agent, run:
+```bash
+printf '\033[1;34m[harness]\033[0m-\033[1;32m[retrospective 실행 중...]\033[0m\n'
+mkdir -p "$HOME/.claude/harness-learnings"
+```
+
+Build the retrospective context string using the original project dir (not the worktree):
+```
+[HARNESS SESSION: <session-id>]
+[SESSION DIR: <session-dir>]
+[PROJECT DIR: <project-dir>]
+문제: <original problem description>
+```
+
+Call `Agent("retrospective", context_string)`.
+
+After the call, validate the output file:
+```bash
+SESSION_ID="<session-id>" python3 - << 'PYEOF'
+import json, os, sys
+sid = os.environ.get("SESSION_ID", "")
+fpath = os.path.expanduser(f"~/.claude/harness-learnings/{sid}.json")
+if not os.path.exists(fpath):
+    print(f"WARNING: retrospective 파일이 생성되지 않았습니다: {fpath}")
+    sys.exit(0)
+try:
+    with open(fpath) as f:
+        data = json.load(f)
+    required = ["session_id", "date", "problem_summary",
+                "advice_for_investigator", "advice_for_architect",
+                "advice_for_implementer", "advice_for_reviewer", "general_patterns"]
+    missing = [k for k in required if k not in data]
+    if missing:
+        print(f"WARNING: retrospective JSON에 필드 누락: {missing}")
+    else:
+        print(f"retrospective 저장 완료: {fpath}")
+except json.JSONDecodeError as e:
+    print(f"WARNING: retrospective JSON 파싱 실패 ({e}) — 파일 삭제")
+    os.remove(fpath)
+PYEOF
+```
+
+Record token usage:
+```bash
+AGENT_LABEL="retrospective" SESSION_DIR="<session-dir>" PROJECT_DIR="<project-dir>" python3 "<session-dir>/record_usage.py"
+```
+
+If the retrospective fails for any reason, output:
+```
+⚠️ retrospective 저장 실패 — 교훈이 누적되지 않습니다. Step 11을 계속 진행합니다.
+```
+
+Then proceed immediately to Step 11.
 
 ## Step 11: 자동 커밋 및 PR 생성
 
