@@ -206,15 +206,59 @@ Use Write or Bash to create the file.
 ```bash
 BRANCH="harness/$SESSION_ID"
 WORKTREE_DIR="$HOME/.claude/harness-worktrees/$SESSION_ID"
-git -C "$PROJECT_DIR" worktree add -b "$BRANCH" "$WORKTREE_DIR"
+
+# 현재 HEAD 브랜치를 BASE_BRANCH로 캡처 (4단계 폴백)
+BASE_BRANCH=$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "HEAD")
+if [ "$BASE_BRANCH" = "HEAD" ] || [ -z "$BASE_BRANCH" ]; then
+  # 1) upstream 추적 브랜치
+  BASE_BRANCH=$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null | sed 's|^[^/]*/||')
+fi
+if [ -z "$BASE_BRANCH" ]; then
+  # 2) origin/HEAD symbolic ref (원격 기본 브랜치)
+  BASE_BRANCH=$(git -C "$PROJECT_DIR" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|^refs/remotes/origin/||')
+fi
+if [ -z "$BASE_BRANCH" ]; then
+  # 3) well-known 기본 브랜치 탐색 (로컬 및 원격 모두 확인)
+  for cand in main master develop trunk; do
+    if git -C "$PROJECT_DIR" show-ref --verify --quiet "refs/heads/$cand" \
+       || git -C "$PROJECT_DIR" show-ref --verify --quiet "refs/remotes/origin/$cand"; then
+      BASE_BRANCH="$cand"
+      break
+    fi
+  done
+fi
+# 4) 최종 폴백
+BASE_BRANCH="${BASE_BRANCH:-main}"
+
+# 중첩 하네스 방어: 현재 브랜치가 harness/* 이면 경고
+case "$BASE_BRANCH" in
+  harness/*)
+    echo "⚠️ 중첩 하네스 감지: 현재 브랜치 '$BASE_BRANCH'가 harness/* 이름공간에 속합니다."
+    echo "   PR이 다른 하네스 브랜치를 base로 만들어집니다. 의도한 것이 맞는지 확인하세요."
+    ;;
+esac
+
+git -C "$PROJECT_DIR" worktree add -b "$BRANCH" "$WORKTREE_DIR" "$BASE_BRANCH"
+
+# session.env에 영속 저장 (Step 11에서 재로드)
+# 값을 single-quote로 감싸 공백 포함 경로도 안전하게 source 가능하도록 한다
+# (git 브랜치명과 하네스 경로는 single-quote를 포함하지 않으므로 안전)
+{
+  printf "BASE_BRANCH='%s'\n" "$BASE_BRANCH"
+  printf "BRANCH='%s'\n" "$BRANCH"
+  printf "WORKTREE_DIR='%s'\n" "$WORKTREE_DIR"
+  printf "PROJECT_DIR='%s'\n" "$PROJECT_DIR"
+} > "$SESSION_DIR/session.env"
+
 echo "WORKTREE_DIR=$WORKTREE_DIR"
+echo "BASE_BRANCH=$BASE_BRANCH"
 ```
 
-git 저장소가 아니면 WORKTREE_DIR을 PROJECT_DIR과 동일하게 설정한다.
+git 저장소가 아니면 WORKTREE_DIR을 PROJECT_DIR과 동일하게 설정한다 (session.env 저장 블록도 건너뛴다).
 
 Announce:
 ```
-워크트리 생성 완료: <worktree-dir> (브랜치: harness/<session-id>)
+워크트리 생성 완료: <worktree-dir> (브랜치: harness/<session-id>, base: <base-branch>)
 ```
 
 이후 Step 7~9에서는 context_string의 `[PROJECT DIR:]` 값을 WORKTREE_DIR로 교체하여 전달한다.
@@ -417,6 +461,11 @@ Then proceed immediately to Step 11.
 
 리뷰 결과가 PASS이고 worktree가 생성된 경우에만 실행.
 
+Step 11 진입 시 session.env를 로드하여 BASE_BRANCH 등 Step 6.5에서 캡처한 값을 복원한다:
+```bash
+[ -f "$SESSION_DIR/session.env" ] && . "$SESSION_DIR/session.env"
+```
+
 ### 11-A. 자동 커밋
 
 ```bash
@@ -435,7 +484,7 @@ git commit -m "<conventional-commit-message>"
 ## PR 미리보기
 
 **제목:** <pr-title>
-**브랜치:** harness/<session-id> → main
+**브랜치:** harness/<session-id> → <base-branch>
 
 **본문:**
 ## 변경 배경
@@ -451,9 +500,20 @@ _하네스 세션 <session-id>에서 자동 생성_
 ```
 
 **사용자가 y 응답 시:**
+
+push/PR 생성 전에 원격에 base branch가 존재하는지 확인한다:
 ```bash
-git push origin "harness/<session-id>"
-gh pr create --base main --head "harness/<session-id>" --title "$PR_TITLE" --body "$PR_BODY"
+if ! git -C "$WORKTREE_DIR" ls-remote --exit-code --heads origin "$BASE_BRANCH" >/dev/null 2>&1; then
+  echo "⚠️ 원격 origin에 base branch '$BASE_BRANCH'가 없습니다. PR 생성이 실패할 수 있습니다."
+  echo "   계속 진행하시겠습니까? (y/n)"
+  # 사용자 응답을 받아 처리 — n이면 중단
+fi
+```
+
+원격 base branch가 확인된 후:
+```bash
+git push origin "harness/$SESSION_ID"
+gh pr create --base "$BASE_BRANCH" --head "harness/$SESSION_ID" --title "$PR_TITLE" --body "$PR_BODY"
 ```
 
 **사용자가 n 또는 수정 요청 시:** 수정 반영 후 다시 미리보기 제시.
@@ -468,6 +528,8 @@ PR merge 후 정리:
 git worktree remove "$HOME/.claude/harness-worktrees/<session-id>"
 git branch -d "harness/<session-id>"
 ```
+
+(PR base: <base-branch>)
 
 ## 컨텍스트 관리
 
