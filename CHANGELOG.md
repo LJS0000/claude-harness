@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1
+
+- Fix per-agent 토큰 추적이 항상 0으로 기록되던 버그 — `record_usage.py`의 잘못된 프로젝트 해시(`lstrip("/")`), 존재하지 않는 `sessions/` 하위 경로, 실제와 다른 `agent-*.jsonl` 패턴이 모두 매치 실패를 일으켜 totals가 0이었음
+- Refactor 토큰 추적을 단순화 — 단계별 기록 대신 Step 10에서 부모 세션 jsonl을 한 번에 합산하여 `usage.json`에 `{session, totals}` 구조로 기록 (retrospective 자체 토큰은 합계 미포함, trade-off)
+- Remove `record_usage.py` 헬퍼 스크립트와 단계별 "Record token usage" 호출 6곳
+
 ## 0.5.0
 
 - Add `retrospective` 에이전트 — 세션 완료 후 세션 아티팩트를 분석하여 역할별 교훈을 JSON으로 `~/.claude/harness-learnings/`에 누적 저장
