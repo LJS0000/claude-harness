@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.0
+
+- feat(harness): 세션 시작 시 codex 연결 상태 점검을 SKILL.md Step 1에 추가 — 설치/버전/필요 flag/인증을 한 번에 검사하여 6가지 상태(`ready` / `disabled` / `missing` / `broken` / `flag_mismatch` / `not_logged_in`)로 분류
+- 결과를 `<session-dir>/codex-status.txt`에 저장하고 사용자에게 한 줄 요약 출력 — 세션 초입에 codex 사용 가능 여부를 즉시 파악 가능
+- implementer.md Step 2에 캐시 fast-path 추가 — `ready` 상태면 재검증 없이 곧바로 codex 실행, 그 외에는 안전망으로 자체 감지 수행
+
 ## 0.6.0
 
 - feat(harness): codex CLI 통합을 implementer에 재도입 — 0.3.1에서 제거되었던 경로를 오류 감소 중심으로 재설계

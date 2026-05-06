@@ -1,6 +1,6 @@
 {
   "name": "harness",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Safety hooks and a multi-agent engineering workflow (investigate → architect → challenge → implement → review) for Claude Code.",
   "author": {
     "name": "LJS0000",
