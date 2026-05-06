@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.2
+
+- fix(harness): PR 자동 생성 시 base branch를 현재 HEAD 기준으로 동적 결정 — 기존에 `--base main`으로 하드코딩되어 `main` 이외 브랜치에서 하네스를 실행하면 PR이 잘못된 base를 가리키던 버그 수정
+- Add Step 6.5: BASE_BRANCH 4단계 폴백 캡처 (현재 HEAD → upstream 추적 브랜치 → origin/HEAD → well-known 브랜치 → `main`)
+- Add Step 6.5: 중첩 하네스 경고 (`harness/*` 브랜치 위에서 재실행 시 감지)
+- Add Step 6.5: `session.env` 영속 저장으로 SESSION_DIR에 `BASE_BRANCH` 등 핵심 변수 보존
+- Add Step 6.5: `worktree add` 에 commit-ish 명시 (`"$BASE_BRANCH"`)로 올바른 베이스에서 분기
+- Add Step 11: 진입 시 `session.env` 로드로 `BASE_BRANCH` 복원
+- Add Step 11-B: push 직전 `git ls-remote`로 원격 base branch 존재 검증 — 없으면 사용자 확인
+- Update Step 11-B: PR 미리보기 및 `gh pr create` 의 `--base` 값을 `$BASE_BRANCH`로 교체
+
 ## 0.5.1
 
 - Fix per-agent 토큰 추적이 항상 0으로 기록되던 버그 — `record_usage.py`의 잘못된 프로젝트 해시(`lstrip("/")`), 존재하지 않는 `sessions/` 하위 경로, 실제와 다른 `agent-*.jsonl` 패턴이 모두 매치 실패를 일으켜 totals가 0이었음
