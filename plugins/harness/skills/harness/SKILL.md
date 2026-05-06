@@ -20,47 +20,10 @@ Generate a session ID and create the session directory:
 SESSION_ID=$(date +%Y%m%d-%H%M%S)
 SESSION_DIR="$HOME/.claude/harness-sessions/$SESSION_ID"
 mkdir -p "$SESSION_DIR"
-echo '{"session":"'"$SESSION_ID"'","agents":[]}' > "$SESSION_DIR/usage.json"
-cat > "$SESSION_DIR/record_usage.py" << 'PYEOF'
-import json, sys, os, subprocess
-label = os.environ.get("AGENT_LABEL", "unknown")
-session_dir = os.environ.get("SESSION_DIR", "")
-project_dir = os.environ.get("PROJECT_DIR", "")
-usage_file = os.path.join(session_dir, "usage.json")
-project_hash = project_dir.lstrip("/").replace("/", "-")
-subagent_dir = os.path.expanduser(f"~/.claude/projects/{project_hash}/sessions")
-result = subprocess.run(
-    ["find", subagent_dir, "-name", "agent-*.jsonl", "-newer", usage_file],
-    capture_output=True, text=True)
-files = [f for f in result.stdout.strip().splitlines() if f]
-latest = sorted(files)[-1] if files else ""
-totals = {"input_tokens": 0, "output_tokens": 0,
-          "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0}
-if latest:
-    try:
-        with open(latest) as f:
-            for line in f:
-                obj = json.loads(line)
-                u = obj.get("usage") or obj.get("message", {}).get("usage", {})
-                for k in totals:
-                    totals[k] += u.get(k, 0) if u else 0
-    except Exception as e:
-        print(f"usage parse error: {e}", file=sys.stderr)
-data = {"agents": []}
-try:
-    with open(usage_file) as f:
-        data = json.load(f)
-except Exception:
-    pass
-data["agents"].append({"agent": label, "usage": totals})
-with open(usage_file, "w") as f:
-    json.dump(data, f, ensure_ascii=False, indent=2)
-total_cache = sum(e["usage"]["cache_read_input_tokens"] for e in data["agents"])
-if total_cache > 1_000_000:
-    print(f"⚠️ 누적 cache_read {total_cache:,} 토큰 — /compact 실행을 권장합니다.")
-PYEOF
 echo "$SESSION_ID"
 ```
+
+Token usage is tallied once at the end of the session (Step 10) by reading the parent session jsonl, so no per-step recording is needed.
 
 Save the session ID, session dir, and project dir (current working directory) — you will need them throughout.
 
@@ -167,11 +130,6 @@ test -f "<session-dir>/investigation.md" && echo "OK" || echo "MISSING"
 
 If MISSING: report the error and ask the user whether to retry or abort. Do not continue.
 
-Record token usage:
-```bash
-AGENT_LABEL="investigator" SESSION_DIR="<session-dir>" PROJECT_DIR="<project-dir>" python3 "<session-dir>/record_usage.py"
-```
-
 ## Step 3: architect 호출
 
 The architect reads `investigation.md` from disk directly — do not pass the full investigation result inline.
@@ -190,11 +148,6 @@ Call `Agent("architect", context_string)`.
 
 Verify `<session-dir>/architecture.md` exists. If MISSING: report and ask to retry or abort.
 
-Record token usage:
-```bash
-AGENT_LABEL="architect" SESSION_DIR="<session-dir>" PROJECT_DIR="<project-dir>" python3 "<session-dir>/record_usage.py"
-```
-
 ## Step 4: challenger 호출
 
 The challenger reads `architecture.md` and `investigation.md` from disk directly — do not pass content inline.
@@ -209,11 +162,6 @@ The challenger does not receive targeted learnings — call with the standard co
 Call `Agent("challenger", context_string)`.
 
 Verify `<session-dir>/alternatives.md` exists. If MISSING: report and ask to retry or abort.
-
-Record token usage:
-```bash
-AGENT_LABEL="challenger" SESSION_DIR="<session-dir>" PROJECT_DIR="<project-dir>" python3 "<session-dir>/record_usage.py"
-```
 
 ## Step 5: 사용자에게 선택지 제시
 
@@ -309,11 +257,6 @@ Build the implementer context string starting from `context_string_with_worktree
 
 Call `Agent("implementer", context_string_with_worktree + "\n선택된 방향: <user's choice>", model="<chosen-model-id>")`.
 
-Record token usage:
-```bash
-AGENT_LABEL="implementer" SESSION_DIR="<session-dir>" PROJECT_DIR="<worktree-dir>" python3 "<session-dir>/record_usage.py"
-```
-
 ## Step 8: plan을 ~/.claude/plans/ 에 복사
 
 ```bash
@@ -347,11 +290,6 @@ Call `Agent("reviewer", context_string_with_worktree)`.
 
 The reviewer will find the plan at `~/.claude/plans/<session-id>.md` automatically.
 
-Record token usage:
-```bash
-AGENT_LABEL="reviewer" SESSION_DIR="<session-dir>" PROJECT_DIR="<worktree-dir>" python3 "<session-dir>/record_usage.py"
-```
-
 ## Step 10: 최종 요약
 
 Output:
@@ -369,25 +307,56 @@ Output:
 세션 파일: <session-dir>
 ```
 
-Then output token usage summary:
+Then compute and output the session-wide token usage by scanning the parent session jsonl(s) modified after the session started:
 ```bash
-SESSION_DIR="<session-dir>" python3 - << 'PYEOF'
-import json, os
-session_dir = os.environ.get("SESSION_DIR", "")
-usage_file = os.path.join(session_dir, "usage.json")
+SESSION_DIR="<session-dir>" PROJECT_DIR="<project-dir>" python3 - << 'PYEOF'
+import json, os, glob
+from datetime import datetime
+
+session_dir = os.environ["SESSION_DIR"]
+project_dir = os.environ["PROJECT_DIR"]
+sid = os.path.basename(session_dir)
+
+project_hash = project_dir.replace("/", "-")
+projects_dir = os.path.expanduser(f"~/.claude/projects/{project_hash}")
+
 try:
-    data = json.load(open(usage_file))
-    print("\n### 토큰 사용량 요약")
-    total_in = total_out = total_cache = 0
-    for entry in data.get("agents", []):
-        u = entry["usage"]
-        inp, out = u["input_tokens"], u["output_tokens"]
-        cache_r, cache_c = u["cache_read_input_tokens"], u["cache_creation_input_tokens"]
-        total_in += inp; total_out += out; total_cache += cache_r
-        print(f"- {entry['agent']}: input={inp}, output={out}, cache_read={cache_r}, cache_create={cache_c}")
-    print(f"\n합계: input={total_in}, output={total_out}, cache_read={total_cache}")
-except Exception as e:
-    print(f"(usage.json 읽기 실패: {e})")
+    session_start = datetime.strptime(sid, "%Y%m%d-%H%M%S").timestamp()
+except ValueError:
+    session_start = os.path.getmtime(session_dir)
+
+totals = {"input_tokens": 0, "output_tokens": 0,
+          "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0}
+
+for path in glob.glob(os.path.join(projects_dir, "*.jsonl")):
+    if os.path.getmtime(path) < session_start:
+        continue
+    try:
+        with open(path) as f:
+            for line in f:
+                try:
+                    obj = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                u = obj.get("usage") or obj.get("message", {}).get("usage", {})
+                if not u:
+                    continue
+                for k in totals:
+                    totals[k] += u.get(k, 0) or 0
+    except Exception as e:
+        print(f"(jsonl 읽기 실패 {path}: {e})")
+
+with open(os.path.join(session_dir, "usage.json"), "w") as f:
+    json.dump({"session": sid, "totals": totals}, f, ensure_ascii=False, indent=2)
+
+print("\n### 토큰 사용량 요약 (세션 전체)")
+print(f"- input:        {totals['input_tokens']:,}")
+print(f"- output:       {totals['output_tokens']:,}")
+print(f"- cache_read:   {totals['cache_read_input_tokens']:,}")
+print(f"- cache_create: {totals['cache_creation_input_tokens']:,}")
+
+if totals["cache_read_input_tokens"] > 1_000_000:
+    print(f"\n⚠️ 누적 cache_read {totals['cache_read_input_tokens']:,} 토큰 — /compact 실행을 권장합니다.")
 PYEOF
 ```
 
@@ -435,11 +404,6 @@ except json.JSONDecodeError as e:
     print(f"WARNING: retrospective JSON 파싱 실패 ({e}) — 파일 삭제")
     os.remove(fpath)
 PYEOF
-```
-
-Record token usage:
-```bash
-AGENT_LABEL="retrospective" SESSION_DIR="<session-dir>" PROJECT_DIR="<project-dir>" python3 "<session-dir>/record_usage.py"
 ```
 
 If the retrospective fails for any reason, output:
@@ -509,7 +473,7 @@ git branch -d "harness/<session-id>"
 
 서브에이전트의 결과는 세션 파일에 이미 기록되므로, 오케스트레이터로 반환되는 내용은 최소화한다. 서브에이전트가 긴 결과를 반환하더라도, 오케스트레이터는 **파일에서 직접 읽어** 필요한 정보를 얻는다.
 
-각 에이전트 호출 후 `record_usage.py`가 `<session-dir>/usage.json`에 누적 토큰 사용량을 기록한다. 누적 `cache_read_input_tokens`가 100만을 초과하면 자동으로 `/compact` 안내가 출력된다. 안내가 표시되면 다음 단계 진행 전 사용자에게 `/compact` 실행을 권장한다.
+세션 종료 시점(Step 10)에 부모 세션 jsonl을 한 번 스캔하여 토큰 사용량 합계를 계산하고, `<session-dir>/usage.json`에 `{"session": ..., "totals": {...}}` 형태로 기록한 뒤 콘솔에 출력한다. 누적 `cache_read_input_tokens`가 100만을 초과하면 `/compact` 안내가 함께 출력되며, 사용자에게 다음 작업 전 `/compact` 실행을 권장한다. (Step 10 이후에 호출되는 retrospective의 토큰은 합계에 포함되지 않는다 — 단순화 trade-off.)
 
 ## Error handling
 

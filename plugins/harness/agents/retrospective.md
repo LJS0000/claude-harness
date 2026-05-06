@@ -22,7 +22,7 @@ The context block will contain:
 1. Read the following files from `<session-dir>`:
    - `investigation.md` — what was investigated
    - `chosen-plan.md` — what plan was chosen and why
-   - `usage.json` — token usage per agent
+   - `usage.json` — session-wide token totals (`{"session": ..., "totals": {input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens}}`)
 
 2. Based on these artifacts, extract lessons learned tailored to each agent role.
 
