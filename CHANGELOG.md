@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.0
+
+- feat(harness): codex CLI 통합을 implementer에 재도입 — 0.3.1에서 제거되었던 경로를 오류 감소 중심으로 재설계
+- 감지 강화: `command -v` 대신 `codex --version` 실행 + `codex exec --help` flag 표면 검증 + (가능 시) `codex login status` 인증 확인
+- 인자 전달: argv 확장/길이 제한 회피를 위해 `chosen-plan.md`를 stdin으로 redirect (`codex exec ... - < chosen-plan.md`)
+- 감사 추적: `--json` 으로 전체 이벤트를 `codex-events.jsonl`에 캡처 (기존 `-o`는 마지막 메시지만 기록되던 버그 수정)
+- Scope 검증 (즉시 fail): codex 종료 후 plan의 "영향 파일" 외 변경이 감지되면 자동 fallback 없이 즉시 실패 보고
+- 비정상 종료 처리 (3택): codex non-zero 종료 시 사용자에게 [1] Claude로 이어서 / [2] 변경 되돌리고 처음부터 / [3] 중단 선택 제시
+- 게이트: `HARNESS_USE_CODEX=0` 환경변수로 codex 비활성화, 기본은 사용 가능 시 항상 시도
+- SKILL.md Step 7 모델 안내에 codex 우선 사용 + 비활성화 옵션 한 줄 추가
+
 ## 0.5.2
 
 - fix(harness): PR 자동 생성 시 base branch를 현재 HEAD 기준으로 동적 결정 — 기존에 `--base main`으로 하드코딩되어 `main` 이외 브랜치에서 하네스를 실행하면 PR이 잘못된 base를 가리키던 버그 수정
