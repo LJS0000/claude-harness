@@ -88,6 +88,65 @@ If any `ADVICE_*` variable is non-empty, also announce:
 이전 세션 교훈 로드됨 (investigator/architect/implementer/reviewer 각 대상)
 ```
 
+### codex 연결 상태 확인
+
+세션 시작 시점에 codex CLI 상태를 점검하여 사용자에게 미리 안내한다. 결과는 `<session-dir>/codex-status.txt`에 저장하여 implementer가 동일 정보를 재사용할 수 있도록 한다.
+
+```bash
+CODEX_STATUS_FILE="$SESSION_DIR/codex-status.txt"
+
+if [ "${HARNESS_USE_CODEX:-1}" = "0" ]; then
+  CODEX_STATE="disabled"
+  CODEX_DETAIL="HARNESS_USE_CODEX=0 (사용자 비활성화)"
+elif ! command -v codex >/dev/null 2>&1; then
+  CODEX_STATE="missing"
+  CODEX_DETAIL="codex CLI 미설치 — https://github.com/openai/codex"
+elif ! codex --version >/dev/null 2>&1; then
+  CODEX_STATE="broken"
+  CODEX_DETAIL="codex 바이너리는 있으나 실행 실패"
+else
+  CODEX_VERSION=$(codex --version 2>/dev/null | head -1)
+  # 필요한 flag 표면 검증
+  if ! codex exec --help 2>&1 | grep -q -- "--full-auto" \
+     || ! codex exec --help 2>&1 | grep -q -- "--json" \
+     || ! codex exec --help 2>&1 | grep -q -- "--output-last-message"; then
+    CODEX_STATE="flag_mismatch"
+    CODEX_DETAIL="$CODEX_VERSION — 필요한 옵션(--full-auto/--json/--output-last-message) 누락"
+  else
+    # 인증 확인 (login status 서브커맨드가 있을 때만)
+    if codex login --help 2>&1 | grep -q "status"; then
+      if codex login status 2>&1 | grep -qiE "logged in|signed in|authenticated"; then
+        CODEX_STATE="ready"
+        CODEX_DETAIL="$CODEX_VERSION (인증 확인됨)"
+      else
+        CODEX_STATE="not_logged_in"
+        CODEX_DETAIL="$CODEX_VERSION — 미인증 (\`codex login\` 필요)"
+      fi
+    else
+      CODEX_STATE="ready"
+      CODEX_DETAIL="$CODEX_VERSION (인증 상태 미확인)"
+    fi
+  fi
+fi
+
+printf "%s\n%s\n" "$CODEX_STATE" "$CODEX_DETAIL" > "$CODEX_STATUS_FILE"
+echo "CODEX_STATE=$CODEX_STATE"
+echo "CODEX_DETAIL=$CODEX_DETAIL"
+```
+
+상태별로 사용자에게 한 줄 요약을 출력한다:
+
+| 상태 | 출력 메시지 |
+|------|-------------|
+| `ready` | `✓ codex 연결: <CODEX_DETAIL> — implementer가 우선 사용` |
+| `disabled` | `✗ codex 비활성: <CODEX_DETAIL> — Claude 직접 편집` |
+| `missing` | `✗ codex 미설치: <CODEX_DETAIL> — Claude 직접 편집` |
+| `broken` | `⚠️ codex 실행 불가: <CODEX_DETAIL> — Claude 직접 편집` |
+| `flag_mismatch` | `⚠️ codex 버전 불일치: <CODEX_DETAIL> — implementer 진입 시 사용자 확인` |
+| `not_logged_in` | `⚠️ codex 미인증: <CODEX_DETAIL> — implementer 진입 시 사용자 확인` |
+
+`ready` 가 아니어도 세션은 정상 진행한다 (implementer 가 Step 2 에서 동일 검증을 다시 한다).
+
 ## Context string format
 
 Pass this block at the top of every sub-agent task:

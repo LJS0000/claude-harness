@@ -43,6 +43,23 @@ awk '/^## *영향 파일/{flag=1;next} /^## /{flag=0} flag' "<session-dir>/chose
 
 ## Step 2: codex 감지 및 사전검증
 
+**우선순위 1: 세션 시작 시 캐시된 상태 확인**
+
+오케스트레이터가 Step 1에서 기록한 `<session-dir>/codex-status.txt` 가 있으면 첫 줄을 읽어 빠르게 분기한다:
+
+```bash
+if [ -f "<session-dir>/codex-status.txt" ]; then
+  CACHED_STATE=$(head -1 "<session-dir>/codex-status.txt")
+  case "$CACHED_STATE" in
+    ready)         : ;;  # 그대로 Step 3 진행
+    disabled|missing|broken) ;;  # 직접 편집 분기 (아래 처리 참고)
+    flag_mismatch|not_logged_in) ;;  # 사용자 확인 분기 (아래 처리 참고)
+  esac
+fi
+```
+
+`ready` 면 곧바로 Step 3으로 진행한다. 다른 상태이거나 파일이 없으면 아래 정식 감지 절차를 수행한다 (안전망).
+
 **환경변수 게이트**:
 - `HARNESS_USE_CODEX=0` → codex 시도 없이 Step 4 (직접 편집)로 직행
 - 그 외 (미설정 또는 `=1`) → codex 감지 시도
