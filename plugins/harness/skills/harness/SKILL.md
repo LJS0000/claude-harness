@@ -95,29 +95,54 @@ If any `ADVICE_*` variable is non-empty, also announce:
 ```bash
 CODEX_STATUS_FILE="$SESSION_DIR/codex-status.txt"
 
+# timeout 명령 확인 (macOS: gtimeout 또는 timeout, Linux: timeout)
+if command -v gtimeout >/dev/null 2>&1; then _TO=gtimeout
+elif command -v timeout >/dev/null 2>&1; then _TO=timeout
+else _TO=""; fi
+_t() { local s=$1; shift; [ -n "$_TO" ] && "$_TO" "$s" "$@" || "$@"; }
+
+# output_flag 여부 추적 (codex-status.txt 3번째 줄에 기록)
+CODEX_HAS_OUTPUT_FLAG=0
+
 if [ "${HARNESS_USE_CODEX:-1}" = "0" ]; then
   CODEX_STATE="disabled"
   CODEX_DETAIL="HARNESS_USE_CODEX=0 (사용자 비활성화)"
 elif ! command -v codex >/dev/null 2>&1; then
   CODEX_STATE="missing"
   CODEX_DETAIL="codex CLI 미설치 — https://github.com/openai/codex"
-elif ! codex --version >/dev/null 2>&1; then
+elif ! _t 5 codex --version >/dev/null 2>&1; then
   CODEX_STATE="broken"
   CODEX_DETAIL="codex 바이너리는 있으나 실행 실패"
 else
-  CODEX_VERSION=$(codex --version 2>/dev/null | head -1)
-  # 필요한 flag 표면 검증
-  if ! codex exec --help 2>&1 | grep -q -- "--full-auto" \
-     || ! codex exec --help 2>&1 | grep -q -- "--json" \
-     || ! codex exec --help 2>&1 | grep -q -- "--output-last-message"; then
+  CODEX_VERSION=$(_t 5 codex --version 2>/dev/null | head -1)
+  # 필요한 flag 표면 검증 — exec --help를 한 번만 호출하여 변수에 저장
+  _HELP=$(_t 10 codex exec --help 2>&1)
+  if ! echo "$_HELP" | grep -q -- "--full-auto" \
+     || ! echo "$_HELP" | grep -q -- "--json"; then
     CODEX_STATE="flag_mismatch"
-    CODEX_DETAIL="$CODEX_VERSION — 필요한 옵션(--full-auto/--json/--output-last-message) 누락"
+    CODEX_DETAIL="$CODEX_VERSION — 필요한 옵션(--full-auto/--json) 누락"
   else
+    # --output-last-message: 선택적 — 없어도 flag_mismatch 아님
+    if echo "$_HELP" | grep -qE -- "--output-last-message|-o[[:space:]]"; then
+      CODEX_HAS_OUTPUT_FLAG=1
+    else
+      CODEX_HAS_OUTPUT_FLAG=0
+    fi
     # 인증 확인 (login status 서브커맨드가 있을 때만)
     if codex login --help 2>&1 | grep -q "status"; then
-      if codex login status 2>&1 | grep -qiE "logged in|signed in|authenticated"; then
+      _AUTH=$(_t 5 codex login status 2>&1)
+      if echo "$_AUTH" | grep -qiE "logged in|signed in|authenticated"; then
         CODEX_STATE="ready"
         CODEX_DETAIL="$CODEX_VERSION (인증 확인됨)"
+      elif echo "$_AUTH" | grep -qiE "rate.?limit|429|too many"; then
+        CODEX_STATE="rate_limited"
+        CODEX_DETAIL="$CODEX_VERSION — rate limit 초과"
+      elif echo "$_AUTH" | grep -qiE "network|connection|ENOTFOUND|timeout|ETIMEDOUT"; then
+        CODEX_STATE="network_error"
+        CODEX_DETAIL="$CODEX_VERSION — 네트워크 오류"
+      elif echo "$_AUTH" | grep -qiE "expired|invalid.*key|unauthorized|401"; then
+        CODEX_STATE="auth_expired"
+        CODEX_DETAIL="$CODEX_VERSION — 인증 만료 (\`codex login\` 필요)"
       else
         CODEX_STATE="not_logged_in"
         CODEX_DETAIL="$CODEX_VERSION — 미인증 (\`codex login\` 필요)"
@@ -129,7 +154,7 @@ else
   fi
 fi
 
-printf "%s\n%s\n" "$CODEX_STATE" "$CODEX_DETAIL" > "$CODEX_STATUS_FILE"
+printf "%s\n%s\noutput_flag=%s\n" "$CODEX_STATE" "$CODEX_DETAIL" "$CODEX_HAS_OUTPUT_FLAG" > "$CODEX_STATUS_FILE"
 echo "CODEX_STATE=$CODEX_STATE"
 echo "CODEX_DETAIL=$CODEX_DETAIL"
 ```
@@ -144,6 +169,9 @@ echo "CODEX_DETAIL=$CODEX_DETAIL"
 | `broken` | `⚠️ codex 실행 불가: <CODEX_DETAIL> — Claude 직접 편집` |
 | `flag_mismatch` | `⚠️ codex 버전 불일치: <CODEX_DETAIL> — implementer 진입 시 사용자 확인` |
 | `not_logged_in` | `⚠️ codex 미인증: <CODEX_DETAIL> — implementer 진입 시 사용자 확인` |
+| `rate_limited` | `⚠️ codex rate limit: <CODEX_DETAIL> — 잠시 후 재시도` |
+| `network_error` | `⚠️ codex 네트워크 오류: <CODEX_DETAIL> — Claude 직접 편집` |
+| `auth_expired` | `⚠️ codex 인증 만료: <CODEX_DETAIL> — \`codex login\` 후 재시도` |
 
 `ready` 가 아니어도 세션은 정상 진행한다 (implementer 가 Step 2 에서 동일 검증을 다시 한다).
 
@@ -308,6 +336,11 @@ git -C "$PROJECT_DIR" worktree add -b "$BRANCH" "$WORKTREE_DIR" "$BASE_BRANCH"
   printf "WORKTREE_DIR='%s'\n" "$WORKTREE_DIR"
   printf "PROJECT_DIR='%s'\n" "$PROJECT_DIR"
 } > "$SESSION_DIR/session.env"
+
+# codex 상태를 session.env에 append (Step 1에서 결정된 값 사용)
+# CODEX_STATE/CODEX_HAS_OUTPUT_FLAG는 Step 1 codex 점검 블록에서 설정됨
+printf "CODEX_STATE='%s'\n" "${CODEX_STATE:-unknown}" >> "$SESSION_DIR/session.env"
+printf "CODEX_HAS_OUTPUT_FLAG='%s'\n" "${CODEX_HAS_OUTPUT_FLAG:-0}" >> "$SESSION_DIR/session.env"
 
 echo "WORKTREE_DIR=$WORKTREE_DIR"
 echo "BASE_BRANCH=$BASE_BRANCH"

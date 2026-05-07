@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.1
+
+- fix(harness): codex 실행 경로 안정화 — `implementer.md`와 `SKILL.md` 양쪽에 다음 7개 수정 적용
+- P0 stdout/stderr 분리: `codex exec`의 stderr를 별도 `codex-stderr.log`로 분리해 `codex-events.jsonl`이 순수 JSONL을 유지하도록 수정 (기존 `2>&1` 합본은 파싱을 깼음)
+- P0 timeout: `gtimeout`/`timeout` 자동 감지 후 `run_with_timeout`/`_t` 헬퍼로 모든 codex 감지 호출에 5초, `codex exec`에 `HARNESS_CODEX_TIMEOUT`(기본 300초) 적용 — hang 시 무한 대기 방지
+- P0 `--output-last-message` 플래그 optional: `--full-auto`/`--json`만 필수로 검증하고 `-o`/`--output-last-message`는 있으면 사용·없으면 생략 — 미지원 버전에서 `FLAG_MISMATCH`로 codex가 한 번도 실행되지 않던 문제 해결
+- P1 untracked 복구: 비정상 종료 [2] 선택 시 `git restore` 외에 `git clean -fd` 추가로 codex가 생성한 새 파일까지 정리
+- P1 scope 경로 정규화: `git status --porcelain` 출력의 따옴표·`./` 접두사를 제거하고 plan-files도 절대→상대 경로로 변환해 `comm -23` 비교 false-positive 제거
+- P1 stale 캐시 재검증: `codex-status.txt` 캐시가 `HARNESS_CODEX_CACHE_TTL`(기본 120초) 초과 시 인증 재확인. macOS `stat -f %m` / Linux `stat -c %Y` 양쪽 fallback
+- P1 인증 실패 세분화: 기존 `not_logged_in` 단일 분기를 `rate_limited` / `network_error` / `auth_expired` / `not_logged_in` 4분기로 분리하고 `session.env`에 `CODEX_STATE`·`CODEX_HAS_OUTPUT_FLAG` 기록
+
 ## 0.7.0
 
 - feat(harness): 세션 시작 시 codex 연결 상태 점검을 SKILL.md Step 1에 추가 — 설치/버전/필요 flag/인증을 한 번에 검사하여 6가지 상태(`ready` / `disabled` / `missing` / `broken` / `flag_mismatch` / `not_logged_in`)로 분류
