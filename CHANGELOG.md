@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.0
+
+- feat(harness): `/harness:idea` 스킬 추가 — 자연어 아이디어를 `docs/ideas/<slug>.md` 마크다운 + GitHub Issues 조합으로 정리
+- `idea-writer` 에이전트 추가 — Phase 1(구체화) / Phase 2(파일 작성) / Phase 3(issue 생성) 분리로 부분 실패 시에도 초안 보존
+- 대상 repo는 별도 인자 없이 스킬 실행 시점의 작업 중인 git repo(`PROJECT_DIR`)를 자동 감지
+- Issue 생성 실패 시 `idea` 라벨 없이 무라벨 폴백, 나머지 항목은 계속 처리
+
 ## 0.7.1
 
 - fix(harness): codex 실행 경로 안정화 — `implementer.md`와 `SKILL.md` 양쪽에 다음 7개 수정 적용
