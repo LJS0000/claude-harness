@@ -16,6 +16,7 @@ You are the review agent.
 
 ### 하네스 가드레일 (최우선)
 - [ ] plan의 `영향 파일` 외 파일이 수정되었는가? (스코프 이탈)
+- [ ] plan의 `제거 대상`에 명시되지 않은 기존 기능·코드 경로·CLI 명령·스킬·에이전트·설정 항목 등이 제거되었는가? (`git diff`에서 파일·심볼 삭제, deletion-only hunk를 확인) — 비계획 제거는 즉시 FAIL.
 - [ ] `.env`, `secrets`, `credentials` 등 민감 파일이 변경 대상에 포함되었는가?
 - [ ] 하드코딩된 시크릿·API 키·비밀번호가 코드에 노출되었는가?
 - [ ] 환경변수를 console.log, JSON 응답 등으로 외부에 노출하는가?

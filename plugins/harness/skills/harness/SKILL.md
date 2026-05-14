@@ -261,18 +261,24 @@ Present this to the user and **stop to wait for their reply**:
 
 **[A] 아키텍트 제안 (기본안)**
 <one-paragraph summary of the architect's plan>
+<architecture.md "제거 대상" 섹션이 "없음"이 아니면: "⚠️ 제거 대상: <불릿 목록>" 한 줄로 명시>
 
 **[B] 대안 1: <title from alternatives.md>**
 <summary>
+<해당 대안의 "제거 대상" 값이 "없음"이 아니면: "⚠️ 제거 대상: <값>" 한 줄로 명시>
 
 **[C] 대안 2: <title>**
 <summary>
+<제거 대상 표시>
 
 **[D] 대안 3: <title>** (있는 경우만)
 <summary>
+<제거 대상 표시>
 
 원하는 방향의 글자를 입력하거나, 자유롭게 방향을 서술해 주세요.
 ```
+
+각 방향의 "제거 대상"이 비어 있지 않으면 위와 같이 요약 아래에 한 줄로 노출하여, 사용자가 선택 시 제거 사항을 인지할 수 있도록 한다. Step 6.3의 승인 게이트는 선택 후에도 한 번 더 실행되므로, 여기서는 누락 시에도 게이트가 안전망 역할을 한다.
 
 **Do not call any more agents until the user replies.**
 
@@ -280,11 +286,78 @@ Present this to the user and **stop to wait for their reply**:
 
 When the user replies with a choice:
 
-- **[A]**: copy content of `architecture.md` to `<session-dir>/chosen-plan.md`
-- **[B/C/D]**: extract the corresponding alternative section from `alternatives.md` and write it to `<session-dir>/chosen-plan.md`
-- **자유 서술**: write the user's direction as-is into `<session-dir>/chosen-plan.md`, prefixed with the architect's "영향 파일" list so the implementer knows the scope
+- **[A]**: copy content of `architecture.md` to `<session-dir>/chosen-plan.md`. 이미 `## 제거 대상` 섹션을 포함하고 있으므로 그대로 둔다.
+- **[B/C/D]**: extract the corresponding alternative section from `alternatives.md` and write it to `<session-dir>/chosen-plan.md`. 대안 블록의 `**제거 대상**: <값>` 라인을 별도의 `## 제거 대상\n<값>` 섹션으로 정규화하여 함께 기록한다. 값이 없으면 `없음`으로 기록한다.
+- **자유 서술**: 사용자의 방향을 그대로 옮기되, 다음을 반드시 수행한다.
+  1. 아키텍트의 "영향 파일" 목록을 상단에 prefix로 붙여 implementer가 스코프를 알 수 있게 한다.
+  2. 사용자에게 다음 질문을 던지고 응답을 기다린다 — 자유 서술은 architect 분석을 거치지 않았기 때문에 제거 여부를 직접 확인해야 한다.
+     ```
+     자유 서술 방향에 기존 기능·코드 경로·CLI 명령·스킬·에이전트·설정 항목 등의 제거가 포함됩니까?
+     포함된다면 제거 대상 식별자와 영향, 대체 수단(있다면)을 한 줄씩 적어 주세요.
+     없다면 "없음"이라고 답해 주세요.
+     ```
+  3. 응답을 그대로 `## 제거 대상` 섹션에 기록한다. 응답이 비어 있거나 모호하면 명확해질 때까지 재질문한다 — 빈 값으로 진행하지 않는다.
 
-Use Write or Bash to create the file.
+Use Write or Bash to create the file. 작성 후 `chosen-plan.md`에는 반드시 `## 제거 대상` 섹션이 존재해야 한다 (값이 "없음"이라도). 없으면 Step 6.3 게이트가 fail-safe로 동작한다.
+
+## Step 6.3: 제거 대상 승인 게이트
+
+`chosen-plan.md`에 명시된 "제거 대상"이 있다면 — 사용자가 원래 문제 설명에서 제거를 요청했더라도 — 여기서 명시적 승인을 다시 받아야 한다. 사유: 사용자 요청 시점과 architect가 구체화한 시점 사이에 의도·스코프가 어긋날 수 있고, 제거는 되돌리기 어렵다.
+
+```bash
+# 1) 섹션 존재 여부
+if grep -q '^## *제거 대상' "$SESSION_DIR/chosen-plan.md"; then
+  SECTION_EXISTS=1
+else
+  SECTION_EXISTS=0
+fi
+
+# 2) 섹션 본문 추출 (다음 "## " 헤더 직전까지)
+REMOVAL=$(awk '/^## *제거 대상/{flag=1;next} /^## /{flag=0} flag' "$SESSION_DIR/chosen-plan.md")
+
+# 3) 정규화: 빈 줄 제거, 선행 불릿(-/*/+)과 전후 공백 제거
+NORMALIZED=$(printf '%s\n' "$REMOVAL" \
+  | sed '/^[[:space:]]*$/d' \
+  | sed 's/^[[:space:]]*[-*+][[:space:]]*//; s/^[[:space:]]*//; s/[[:space:]]*$//')
+
+# 4) 판정
+if [ "$SECTION_EXISTS" = "0" ]; then
+  SECTION_MISSING=1            # fail-safe: 게이트 진입 불가
+elif [ -z "$NORMALIZED" ] || [ "$NORMALIZED" = "없음" ]; then
+  REMOVAL_PRESENT=0
+else
+  REMOVAL_PRESENT=1
+fi
+```
+
+`REMOVAL_PRESENT=1` 인 경우 사용자에게 다음을 출력하고 **응답을 기다린다**:
+
+```
+## ⚠️ 기존 기능 제거 확인
+
+이 방향은 아래 항목을 제거합니다:
+<REMOVAL 내용 그대로 출력>
+
+원래 문제 설명에서 제거를 요청하셨더라도, 제거는 되돌리기 어렵기 때문에
+architect가 구체화한 시점에서 한 번 더 확인합니다.
+
+이대로 진행하시려면 "예" 또는 "승인"이라고 답해 주세요.
+다시 검토하고 싶으시면 "취소" 또는 수정 사항을 적어 주세요.
+```
+
+응답 처리:
+- **"예" / "yes" / "y" / "승인" 류**: 게이트 통과 → Step 6.5로 진행.
+- **"취소" / "no" / "n" 류**: chosen-plan.md를 폐기하고 Step 5의 선택지 제시로 복귀.
+- **수정 사항 서술**: 사용자의 수정 의도를 반영하여 chosen-plan.md를 다시 작성(Step 6 재실행)한 뒤 게이트 재실행.
+
+`REMOVAL_PRESENT=0` 인 경우 게이트를 조용히 통과하고 Step 6.5로 진행.
+
+`SECTION_MISSING=1` 인 경우 (architect/challenger 출력 누락 또는 free-form에서 정규화 실패): 사용자에게 다음을 보고한 뒤 Step 6로 복귀해 섹션을 채운다. 게이트를 우회하지 않는다.
+
+```
+⚠️ chosen-plan.md에 '## 제거 대상' 섹션이 없습니다. 제거 여부를 판단할 수 없어
+   진행을 중단합니다. Step 6를 다시 실행하여 섹션을 채워 주세요.
+```
 
 ## Step 6.5: Worktree 생성
 

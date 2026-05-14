@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.10.0
+
+- feat(harness): 기존 기능 제거 시 architect 단계 명시적 승인 게이트 추가 — 마이그레이션·리팩터·신규 기능 등 사유와 무관, 사용자가 원래 문제 설명에서 제거를 요청했더라도 architect가 구체화한 시점에서 재승인 필수
+- `architect.md`: 계획 출력 템플릿에 `## 제거 대상` 섹션 필수화 (없으면 "없음")
+- `challenger.md`: 각 대안 블록에 `**제거 대상**:` 라인 추가
+- `SKILL.md`:
+  - Step 5 선택지 요약에 제거 사항 한 줄 노출
+  - Step 6에서 source(A/B/C/D/자유서술)별로 `## 제거 대상` 섹션을 정규화 작성, 자유 서술 시 사용자에게 별도 질문
+  - 새 Step 6.3 "제거 대상 승인 게이트" — `chosen-plan.md`를 파싱해 제거 항목이 있으면 명시적 "예/승인" 요구, 섹션 누락 시 fail-safe로 Step 6 복귀
+- `reviewer.md`: 가드레일 체크리스트에 "plan 제거 대상에 없는 삭제" 즉시 FAIL 항목 추가
+
 ## 0.9.0
 
 - feat(harness)!: `/harness:idea` 스킬과 `idea-writer` 에이전트 제거 — 단일 책임(엔지니어링 워크플로우) 외 범위 정리
