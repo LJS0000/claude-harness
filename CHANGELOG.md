@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.0
+
+- feat(harness)!: `/harness:idea` 스킬과 `idea-writer` 에이전트 제거 — 단일 책임(엔지니어링 워크플로우) 외 범위 정리
+
 ## 0.8.0
 
 - feat(harness): `/harness:idea` 스킬 추가 — 자연어 아이디어를 `docs/ideas/<slug>.md` 마크다운 + GitHub Issues 조합으로 정리
