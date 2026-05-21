@@ -43,31 +43,21 @@ awk '/^## *영향 파일/{flag=1;next} /^## /{flag=0} flag' "<session-dir>/chose
 
 ## Step 2: codex 감지 및 사전검증
 
-**우선순위 1: 세션 시작 시 캐시된 상태 확인**
+이 단계는 단일 변수 `DETECT_STATE`에 다음 중 하나의 값을 채워 Step 2-4 분기로 보낸다:
 
-오케스트레이터가 Step 1에서 기록한 `<session-dir>/codex-status.txt` 가 있으면 첫 줄을 읽어 빠르게 분기한다:
+`READY` / `DISABLED` / `NO_BINARY` / `FLAG_MISMATCH` / `NOT_LOGGED_IN` / `RATE_LIMITED` / `NETWORK_ERROR` / `AUTH_EXPIRED` / `TIMEOUT`
 
-```bash
-if [ -f "<session-dir>/codex-status.txt" ]; then
-  CACHED_STATE=$(head -1 "<session-dir>/codex-status.txt")
-  case "$CACHED_STATE" in
-    ready)         : ;;  # 그대로 Step 3 진행 (stale 재검증은 아래 수행)
-    disabled|missing|broken) ;;  # 직접 편집 분기 (아래 처리 참고)
-    flag_mismatch|not_logged_in|rate_limited|network_error|auth_expired) ;;  # 사용자 확인 분기 (아래 처리 참고)
-  esac
-fi
-```
-
-`ready` 상태이면 stale 캐시 재검증을 수행한다. `codex-status.txt` 타임스탬프를 확인하여 `HARNESS_CODEX_CACHE_TTL`(기본 120초) 이내이면 fast-path, 초과이면 인증 재확인만 수행한다:
+### Step 2-0. 공통 헬퍼
 
 ```bash
-# timeout 명령 확인 (macOS: gtimeout 또는 timeout, Linux: timeout)
+# timeout 명령 감지 (macOS: gtimeout 또는 timeout, Linux: timeout)
 if command -v gtimeout >/dev/null 2>&1; then
   TIMEOUT_CMD="gtimeout"
 elif command -v timeout >/dev/null 2>&1; then
   TIMEOUT_CMD="timeout"
 else
   TIMEOUT_CMD=""
+  echo "⚠️  timeout/gtimeout 미설치 — codex hang 시 무한 대기 위험. coreutils 설치를 권장합니다."
 fi
 
 run_with_timeout() {
@@ -79,111 +69,163 @@ run_with_timeout() {
   fi
 }
 
-CACHE_TTL=${HARNESS_CODEX_CACHE_TTL:-120}
-CACHE_AGE=$(( $(date +%s) - $(stat -f %m "<session-dir>/codex-status.txt" 2>/dev/null || stat -c %Y "<session-dir>/codex-status.txt" 2>/dev/null || echo 0) ))
-
-if [ "$CACHED_STATE" = "ready" ] && [ "$CACHE_AGE" -le "$CACHE_TTL" ]; then
-  : # fast-path: Step 3 진행
-elif [ "$CACHED_STATE" = "ready" ] && [ "$CACHE_AGE" -gt "$CACHE_TTL" ]; then
-  # 인증 재확인만 수행 (바이너리/플래그는 재검증 생략)
-  if codex login --help 2>&1 | grep -q "status"; then
-    AUTH_OUT=$(run_with_timeout 5 codex login status 2>&1)
-    if echo "$AUTH_OUT" | grep -qiE "logged in|signed in|authenticated"; then
-      : # 인증 확인됨 — 타임스탬프 갱신
-    elif echo "$AUTH_OUT" | grep -qiE "rate.?limit|429|too many"; then
-      CACHED_STATE="rate_limited"
-      printf "rate_limited\n(재검증: rate limit)\n" > "<session-dir>/codex-status.txt"
-    elif echo "$AUTH_OUT" | grep -qiE "network|connection|ENOTFOUND|timeout|ETIMEDOUT"; then
-      CACHED_STATE="network_error"
-      printf "network_error\n(재검증: 네트워크 단절)\n" > "<session-dir>/codex-status.txt"
-    elif echo "$AUTH_OUT" | grep -qiE "expired|invalid.*key|unauthorized|401"; then
-      CACHED_STATE="auth_expired"
-      printf "auth_expired\n(재검증: 인증 만료)\n" > "<session-dir>/codex-status.txt"
-    else
-      CACHED_STATE="not_logged_in"
-      printf "not_logged_in\n(재검증: 인증 만료 또는 네트워크 단절)\n" > "<session-dir>/codex-status.txt"
-    fi
-  fi
-  # 재검증 통과 시 타임스탬프 갱신
-  if [ "$CACHED_STATE" = "ready" ]; then
-    touch "<session-dir>/codex-status.txt"
-  fi
-fi
+DETECT_STATE=""
+CODEX_OUTPUT_FLAG=""
 ```
 
-다른 상태이거나 파일이 없으면 아래 정식 감지 절차를 수행한다 (안전망).
-
-**환경변수 게이트**:
-- `HARNESS_USE_CODEX=0` → codex 시도 없이 Step 4 (직접 편집)로 직행
-- 그 외 (미설정 또는 `=1`) → codex 감지 시도
-
-**감지 절차** (모두 통과해야 codex 실행):
+### Step 2-1. 환경변수 게이트
 
 ```bash
-# timeout 명령 확인 (정식 감지 절차 진입 시 설정 — stale 재검증 경로에서 이미 설정된 경우 재사용)
-if [ -z "${TIMEOUT_CMD+x}" ]; then
-  if command -v gtimeout >/dev/null 2>&1; then
-    TIMEOUT_CMD="gtimeout"
-  elif command -v timeout >/dev/null 2>&1; then
-    TIMEOUT_CMD="timeout"
-  else
-    TIMEOUT_CMD=""
+if [ "${HARNESS_USE_CODEX:-1}" = "0" ]; then
+  DETECT_STATE="DISABLED"
+fi
+```
+
+### Step 2-2. 캐시 fast-path
+
+`DETECT_STATE`가 비어 있고 `<session-dir>/codex-status.txt`가 존재하면 캐시를 읽어 빠르게 분기한다. 캐시 파일 형식 (3줄):
+1. 상태 키워드 (`ready` / `disabled` / `missing` / `broken` / `flag_mismatch` / `not_logged_in` / `rate_limited` / `network_error` / `auth_expired`)
+2. 사람이 읽을 detail
+3. `output_flag=0` 또는 `output_flag=1` (`--output-last-message` 지원 여부)
+
+```bash
+if [ -z "$DETECT_STATE" ] && [ -f "<session-dir>/codex-status.txt" ]; then
+  CACHED_STATE=$(sed -n '1p' "<session-dir>/codex-status.txt")
+  # 3번째 줄에서 output_flag 복원 (라인 위치가 바뀌어도 안전하도록 grep)
+  OUTPUT_FLAG_LINE=$(grep '^output_flag=' "<session-dir>/codex-status.txt" 2>/dev/null | head -1 || true)
+  if [ "$OUTPUT_FLAG_LINE" = "output_flag=1" ]; then
+    CODEX_OUTPUT_FLAG="--output-last-message <session-dir>/codex-last-message.md"
   fi
 
-  run_with_timeout() {
-    local secs="$1"; shift
-    if [ -n "$TIMEOUT_CMD" ]; then
-      "$TIMEOUT_CMD" "$secs" "$@"
-    else
-      "$@"
-    fi
-  }
+  CACHE_TTL=${HARNESS_CODEX_CACHE_TTL:-120}
+  # HARNESS_CODEX_CACHE_TTL이 비숫자면 기본값으로 폴백
+  case "$CACHE_TTL" in ''|*[!0-9]*) CACHE_TTL=120 ;; esac
+  CACHE_AGE=$(( $(date +%s) - $(stat -f %m "<session-dir>/codex-status.txt" 2>/dev/null || stat -c %Y "<session-dir>/codex-status.txt" 2>/dev/null || echo 0) ))
+
+  case "$CACHED_STATE" in
+    disabled)        DETECT_STATE="DISABLED" ;;
+    missing|broken)  DETECT_STATE="NO_BINARY" ;;
+    flag_mismatch)   DETECT_STATE="FLAG_MISMATCH" ;;
+    not_logged_in)   DETECT_STATE="NOT_LOGGED_IN" ;;
+    rate_limited)    DETECT_STATE="RATE_LIMITED" ;;
+    network_error)   DETECT_STATE="NETWORK_ERROR" ;;
+    auth_expired)    DETECT_STATE="AUTH_EXPIRED" ;;
+    ready)
+      if [ "$CACHE_AGE" -le "$CACHE_TTL" ]; then
+        DETECT_STATE="READY"  # fast-path
+      else
+        # TTL 초과: 인증만 재확인 (바이너리·flag는 생략)
+        LOGIN_HELP=$(run_with_timeout 5 codex login --help 2>&1)
+        LOGIN_HELP_EXIT=$?
+        if [ "$LOGIN_HELP_EXIT" -eq 124 ]; then
+          DETECT_STATE="TIMEOUT"
+        elif echo "$LOGIN_HELP" | grep -q "status"; then
+          AUTH_OUT=$(run_with_timeout 5 codex login status 2>&1)
+          AUTH_EXIT=$?
+          if [ "$AUTH_EXIT" -eq 124 ]; then
+            DETECT_STATE="TIMEOUT"
+          elif echo "$AUTH_OUT" | grep -qiE "logged in|signed in|authenticated"; then
+            DETECT_STATE="READY"
+            touch "<session-dir>/codex-status.txt"
+          elif echo "$AUTH_OUT" | grep -qiE "rate.?limit|429|too many"; then
+            DETECT_STATE="RATE_LIMITED"
+          elif echo "$AUTH_OUT" | grep -qiE "network|connection|ENOTFOUND|timeout|ETIMEDOUT"; then
+            DETECT_STATE="NETWORK_ERROR"
+          elif echo "$AUTH_OUT" | grep -qiE "expired|invalid.*key|unauthorized|401"; then
+            DETECT_STATE="AUTH_EXPIRED"
+          else
+            DETECT_STATE="NOT_LOGGED_IN"
+          fi
+        else
+          # login status 서브커맨드 미지원 — TTL 갱신만
+          DETECT_STATE="READY"
+          touch "<session-dir>/codex-status.txt"
+        fi
+      fi
+      ;;
+  esac
+fi
+```
+
+캐시 분기에서 상태가 변하더라도 `codex-status.txt`는 **덮어쓰지 않는다** — Step 3로 진입하지 않으므로 그대로 둬도 무해하고, `output_flag` 등 유용한 정보를 잃지 않는다.
+
+### Step 2-3. 정식 감지 (캐시 미스)
+
+`DETECT_STATE`가 여전히 비어 있으면 직접 감지한다.
+
+```bash
+# 2-3a: 바이너리 + 실행 가능
+if [ -z "$DETECT_STATE" ]; then
+  run_with_timeout 5 codex --version >/dev/null 2>&1
+  VER_EXIT=$?
+  if [ "$VER_EXIT" -eq 124 ]; then
+    DETECT_STATE="TIMEOUT"
+  elif [ "$VER_EXIT" -ne 0 ]; then
+    DETECT_STATE="NO_BINARY"
+  fi
 fi
 
-# 2-a: 바이너리 + 실행 가능
-run_with_timeout 5 codex --version >/dev/null 2>&1 || echo "NO_BINARY"
-
-# 2-b: exec 서브커맨드 + 필요한 flag 표면 검증
-HELP_OUT=$(run_with_timeout 5 codex exec --help 2>&1)
-echo "$HELP_OUT" | grep -q -- "--full-auto" || echo "FLAG_MISMATCH"
-echo "$HELP_OUT" | grep -q -- "--json" || echo "FLAG_MISMATCH"
-
-# --output-last-message/-o: 있으면 사용, 없으면 조용히 생략 (FLAG_MISMATCH 아님)
-if echo "$HELP_OUT" | grep -qE -- "--output-last-message|-o[[:space:]]"; then
-  CODEX_OUTPUT_FLAG="-o <session-dir>/codex-last-message.md"
-else
-  CODEX_OUTPUT_FLAG=""
-fi
-
-# 2-c: 인증 (codex login status 서브커맨드가 있을 때만 시도)
-if codex login --help 2>&1 | grep -q "status"; then
-  AUTH_OUT=$(run_with_timeout 5 codex login status 2>&1)
-  if echo "$AUTH_OUT" | grep -qiE "logged in|signed in|authenticated"; then
-    : # 인증 확인됨
-  elif echo "$AUTH_OUT" | grep -qiE "rate.?limit|429|too many"; then
-    echo "RATE_LIMITED"
-  elif echo "$AUTH_OUT" | grep -qiE "network|connection|ENOTFOUND|timeout|ETIMEDOUT"; then
-    echo "NETWORK_ERROR"
-  elif echo "$AUTH_OUT" | grep -qiE "expired|invalid.*key|unauthorized|401"; then
-    echo "AUTH_EXPIRED"
+# 2-3b: exec 서브커맨드 + 필요한 flag 표면 검증
+if [ -z "$DETECT_STATE" ]; then
+  HELP_OUT=$(run_with_timeout 5 codex exec --help 2>&1)
+  HELP_EXIT=$?
+  if [ "$HELP_EXIT" -eq 124 ]; then
+    DETECT_STATE="TIMEOUT"
+  elif ! echo "$HELP_OUT" | grep -q -- "--full-auto" \
+     || ! echo "$HELP_OUT" | grep -q -- "--json"; then
+    DETECT_STATE="FLAG_MISMATCH"
   else
-    echo "NOT_LOGGED_IN"
+    # --output-last-message는 선택적 — 있으면 사용, 없으면 생략
+    if echo "$HELP_OUT" | grep -q -- "--output-last-message"; then
+      CODEX_OUTPUT_FLAG="--output-last-message <session-dir>/codex-last-message.md"
+    fi
+  fi
+fi
+
+# 2-3c: 인증 (codex login status 서브커맨드가 있을 때만 시도)
+if [ -z "$DETECT_STATE" ]; then
+  LOGIN_HELP=$(run_with_timeout 5 codex login --help 2>&1)
+  LOGIN_HELP_EXIT=$?
+  if [ "$LOGIN_HELP_EXIT" -eq 124 ]; then
+    DETECT_STATE="TIMEOUT"
+  elif echo "$LOGIN_HELP" | grep -q "status"; then
+    AUTH_OUT=$(run_with_timeout 5 codex login status 2>&1)
+    AUTH_EXIT=$?
+    if [ "$AUTH_EXIT" -eq 124 ]; then
+      DETECT_STATE="TIMEOUT"
+    elif echo "$AUTH_OUT" | grep -qiE "logged in|signed in|authenticated"; then
+      DETECT_STATE="READY"
+    elif echo "$AUTH_OUT" | grep -qiE "rate.?limit|429|too many"; then
+      DETECT_STATE="RATE_LIMITED"
+    elif echo "$AUTH_OUT" | grep -qiE "network|connection|ENOTFOUND|timeout|ETIMEDOUT"; then
+      DETECT_STATE="NETWORK_ERROR"
+    elif echo "$AUTH_OUT" | grep -qiE "expired|invalid.*key|unauthorized|401"; then
+      DETECT_STATE="AUTH_EXPIRED"
+    else
+      DETECT_STATE="NOT_LOGGED_IN"
+    fi
+  else
+    # login status 서브커맨드 미지원 — 통과 (인증 상태 미확인)
+    DETECT_STATE="READY"
   fi
 fi
 ```
 
-각 결과별 처리:
+### Step 2-4. `DETECT_STATE`별 처리
+
+- **READY**: Step 3 진행.
+
+- **DISABLED**: `HARNESS_USE_CODEX=0` 또는 캐시 `disabled`. 조용히 Step 4 (직접 편집)로 진행.
 
 - **NO_BINARY**:
-  - `<session-dir>/.codex-prompted` 가 없으면 (FIRST_TIME):
+  - `<session-dir>/.codex-prompted`가 없으면 (FIRST_TIME):
     ```
     ⚠️  codex CLI를 찾을 수 없습니다.
     codex를 설치하면 더 강력한 모델로 구현할 수 있습니다.
     설치 방법: https://github.com/openai/codex
     설치 후 다시 실행하거나, 지금 Claude로 직접 구현하려면 계속하세요.
     ```
-    출력 후 `touch "<session-dir>/.codex-prompted"` 하고 사용자 응답 대기.
-    "계속" 류 응답이면 Step 4로.
+    출력 후 `touch "<session-dir>/.codex-prompted"`하고 사용자 응답 대기. "계속" 류 응답이면 Step 4로.
   - 마커가 이미 있으면 (ALREADY_PROMPTED) 조용히 Step 4로.
 
 - **FLAG_MISMATCH**: codex 버전이 예상과 다름. 사용자에게 보고 후 Step 4 진행 여부 확인:
@@ -194,23 +236,28 @@ fi
   ```
   y → Step 4. n → 보고서에 "codex 버전 불일치로 중단" 기록 후 종료.
 
+- **TIMEOUT**: codex 감지 호출이 5초 안에 응답하지 않음. 안내:
+  ```
+  ⚠️  codex 감지 호출이 응답하지 않습니다 (timeout).
+  네트워크 또는 codex 프로세스 상태를 확인하거나 Claude로 진행하세요.
+  ```
+  사용자 응답 대기. "재시도" → Step 2-3 처음부터 재실행. "Claude" → Step 4.
+
 - **NOT_LOGGED_IN**: 인증 누락. 안내:
   ```
   ⚠️  codex 인증이 필요합니다. 별도 터미널에서 `codex login` 실행 후 알려주세요.
   대신 Claude로 진행하려면 그렇게 답해 주세요.
   ```
-  사용자 응답 대기. "재시도" 류 → 2-c부터 재실행. "Claude" 류 → Step 4.
+  사용자 응답 대기. "재시도" → Step 2-3c부터 재실행. "Claude" → Step 4.
 
 - **RATE_LIMITED**: `⚠️ codex API rate limit 초과. 잠시 후 재시도하거나 Claude로 진행하세요.`
-  사용자 응답 대기. "재시도" 류 → 2-c부터 재실행. "Claude" 류 → Step 4.
+  사용자 응답 대기. "재시도" → Step 2-3c부터 재실행. "Claude" → Step 4.
 
 - **NETWORK_ERROR**: `⚠️ codex 네트워크 연결 실패. 연결 확인 후 재시도하거나 Claude로 진행하세요.`
-  사용자 응답 대기. "재시도" 류 → 2-c부터 재실행. "Claude" 류 → Step 4.
+  사용자 응답 대기. "재시도" → Step 2-3c부터 재실행. "Claude" → Step 4.
 
 - **AUTH_EXPIRED**: `⚠️ codex 인증이 만료되었습니다. \`codex login\` 실행 후 알려주세요.`
-  사용자 응답 대기. "재시도" 류 → 2-c부터 재실행. "Claude" 류 → Step 4.
-
-- 모두 통과 → Step 3 진행.
+  사용자 응답 대기. "재시도" → Step 2-3c부터 재실행. "Claude" → Step 4.
 
 ## Step 3: codex 실행
 
@@ -219,20 +266,18 @@ LAST_MSG="<session-dir>/codex-last-message.md"
 EVENTS="<session-dir>/codex-events.jsonl"
 CODEX_STDERR="<session-dir>/codex-stderr.log"
 
-# CODEX_OUTPUT_FLAG가 아직 설정되지 않은 경우 (캐시 fast-path 경유 시) 기본값 설정
-# codex-status.txt 3번째 줄에서 output_flag 값 읽기
-if [ -z "${CODEX_OUTPUT_FLAG+x}" ]; then
-  OUTPUT_FLAG_LINE=$(sed -n '3p' "<session-dir>/codex-status.txt" 2>/dev/null || true)
-  if [ "$OUTPUT_FLAG_LINE" = "output_flag=1" ]; then
-    CODEX_OUTPUT_FLAG="-o $LAST_MSG"
-  else
-    CODEX_OUTPUT_FLAG=""
-  fi
+# CODEX_OUTPUT_FLAG는 Step 2-2(캐시 fast-path) 또는 Step 2-3b(정식 감지)에서 설정됨.
+# placeholder를 LAST_MSG 실제 경로로 치환 (Step 2에서는 "<session-dir>/codex-last-message.md" 텍스트로 저장됨).
+if [ -n "$CODEX_OUTPUT_FLAG" ]; then
+  CODEX_OUTPUT_FLAG="--output-last-message $LAST_MSG"
 fi
+
+# HARNESS_CODEX_TIMEOUT 비숫자 방어
+CODEX_TIMEOUT=${HARNESS_CODEX_TIMEOUT:-300}
+case "$CODEX_TIMEOUT" in ''|*[!0-9]*) CODEX_TIMEOUT=300 ;; esac
 
 # stdin 으로 plan 전달 (argv 확장 회피, 길이 제한 회피)
 # stderr는 별도 파일로 분리하여 EVENTS 파일이 순수 JSONL이 되도록 한다
-CODEX_TIMEOUT=${HARNESS_CODEX_TIMEOUT:-300}
 run_with_timeout "$CODEX_TIMEOUT" codex exec \
   --full-auto \
   -C "<project-dir>" \

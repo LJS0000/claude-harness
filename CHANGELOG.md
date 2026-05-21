@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.11.1
+
+- fix(harness): codex 연동 하드닝 — `implementer.md`와 `harness/SKILL.md`의 동작 결함 6건과 방어적 개선 2건 정리
+- P0 감지 결과 변수 캡처 누락: `echo "NO_BINARY"`/`echo "FLAG_MISMATCH"` 등이 stdout으로만 출력되어 후속 분기가 실질적으로 무력화되던 문제를 `DETECT_STATE` 단일 변수로 일원화. Step 2를 2-0(헬퍼) / 2-1(env 게이트) / 2-2(캐시 fast-path) / 2-3(정식 감지) / 2-4(분기 처리) 5단계로 재구성하여 모든 분기를 명시적 코드로 표현
+- P0 `codex login --help` timeout 미적용: SKILL.md(세션 시작 점검) 및 implementer.md(감지·재검증) 양쪽에서 codex 프로세스가 hang하면 무한 대기하던 위험을 `_t 5` / `run_with_timeout 5` 래핑으로 차단
+- P0 stale 재검증 시 codex-status.txt 3번째 줄(`output_flag=N`) 손실: 재검증 분기에서 파일을 2줄짜리로 덮어써 Step 3의 OUTPUT_FLAG 복원이 실패하던 문제 — 캐시 분기에서는 파일을 더 이상 덮어쓰지 않고, Step 3는 `grep '^output_flag='`로 라인 위치 비의존적으로 읽도록 변경
+- P1 timeout exit 124 미구분: `codex --version` / `codex exec --help` / `codex login --help` / `codex login status` 호출 후 exit code를 별도 검사하여 `broken` / `network_error` / `TIMEOUT` 으로 정확히 진단. 이전에는 출력이 비어 `not_logged_in`으로 오분류
+- P1 `-o[[:space:]]` flag 검출 오탐: `-o`가 codex의 다른 단문자 옵션과 충돌할 수 있어 `--output-last-message` long-form만 검사. Step 3의 codex 호출도 `-o` 대신 `--output-last-message` 명시적 표기 사용
+- P2 timeout 명령 미설치 경고: macOS에 coreutils가 없을 때 SKILL.md / implementer.md 양쪽에서 "codex hang 시 무한 대기 위험" 안내 출력
+- P2 환경변수 비숫자 폴백: `HARNESS_CODEX_CACHE_TTL` / `HARNESS_CODEX_TIMEOUT` 가 숫자가 아니면 기본값(120 / 300)으로 폴백
+
 ## 0.11.0
 
 - feat(harness): 작성 주체 규칙 도입 — 모든 산출물(코드, 주석, 문서, 커밋 메시지, PR 본문, CHANGELOG 등)을 1인칭 사용자 관점으로 작성하고 AI·도구·자동화 출처 표시를 금지

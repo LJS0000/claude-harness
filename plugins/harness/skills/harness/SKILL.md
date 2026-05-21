@@ -101,6 +101,10 @@ elif command -v timeout >/dev/null 2>&1; then _TO=timeout
 else _TO=""; fi
 _t() { local s=$1; shift; [ -n "$_TO" ] && "$_TO" "$s" "$@" || "$@"; }
 
+if [ -z "$_TO" ]; then
+  echo "⚠️ timeout/gtimeout 미설치 — codex hang 시 무한 대기 위험. coreutils 설치를 권장합니다."
+fi
+
 # output_flag 여부 추적 (codex-status.txt 3번째 줄에 기록)
 CODEX_HAS_OUTPUT_FLAG=0
 
@@ -110,46 +114,64 @@ if [ "${HARNESS_USE_CODEX:-1}" = "0" ]; then
 elif ! command -v codex >/dev/null 2>&1; then
   CODEX_STATE="missing"
   CODEX_DETAIL="codex CLI 미설치 — https://github.com/openai/codex"
-elif ! _t 5 codex --version >/dev/null 2>&1; then
-  CODEX_STATE="broken"
-  CODEX_DETAIL="codex 바이너리는 있으나 실행 실패"
 else
-  CODEX_VERSION=$(_t 5 codex --version 2>/dev/null | head -1)
-  # 필요한 flag 표면 검증 — exec --help를 한 번만 호출하여 변수에 저장
-  _HELP=$(_t 10 codex exec --help 2>&1)
-  if ! echo "$_HELP" | grep -q -- "--full-auto" \
-     || ! echo "$_HELP" | grep -q -- "--json"; then
-    CODEX_STATE="flag_mismatch"
-    CODEX_DETAIL="$CODEX_VERSION — 필요한 옵션(--full-auto/--json) 누락"
+  _t 5 codex --version >/dev/null 2>&1
+  VER_EXIT=$?
+  if [ "$VER_EXIT" -eq 124 ]; then
+    CODEX_STATE="broken"
+    CODEX_DETAIL="codex --version timeout (5초) — 프로세스 응답 없음"
+  elif [ "$VER_EXIT" -ne 0 ]; then
+    CODEX_STATE="broken"
+    CODEX_DETAIL="codex 바이너리는 있으나 실행 실패 (exit=$VER_EXIT)"
   else
-    # --output-last-message: 선택적 — 없어도 flag_mismatch 아님
-    if echo "$_HELP" | grep -qE -- "--output-last-message|-o[[:space:]]"; then
-      CODEX_HAS_OUTPUT_FLAG=1
+    CODEX_VERSION=$(_t 5 codex --version 2>/dev/null | head -1)
+    # 필요한 flag 표면 검증 — exec --help를 한 번만 호출하여 변수에 저장
+    _HELP=$(_t 10 codex exec --help 2>&1)
+    HELP_EXIT=$?
+    if [ "$HELP_EXIT" -eq 124 ]; then
+      CODEX_STATE="broken"
+      CODEX_DETAIL="$CODEX_VERSION — codex exec --help timeout (10초)"
+    elif ! echo "$_HELP" | grep -q -- "--full-auto" \
+       || ! echo "$_HELP" | grep -q -- "--json"; then
+      CODEX_STATE="flag_mismatch"
+      CODEX_DETAIL="$CODEX_VERSION — 필요한 옵션(--full-auto/--json) 누락"
     else
-      CODEX_HAS_OUTPUT_FLAG=0
-    fi
-    # 인증 확인 (login status 서브커맨드가 있을 때만)
-    if codex login --help 2>&1 | grep -q "status"; then
-      _AUTH=$(_t 5 codex login status 2>&1)
-      if echo "$_AUTH" | grep -qiE "logged in|signed in|authenticated"; then
-        CODEX_STATE="ready"
-        CODEX_DETAIL="$CODEX_VERSION (인증 확인됨)"
-      elif echo "$_AUTH" | grep -qiE "rate.?limit|429|too many"; then
-        CODEX_STATE="rate_limited"
-        CODEX_DETAIL="$CODEX_VERSION — rate limit 초과"
-      elif echo "$_AUTH" | grep -qiE "network|connection|ENOTFOUND|timeout|ETIMEDOUT"; then
-        CODEX_STATE="network_error"
-        CODEX_DETAIL="$CODEX_VERSION — 네트워크 오류"
-      elif echo "$_AUTH" | grep -qiE "expired|invalid.*key|unauthorized|401"; then
-        CODEX_STATE="auth_expired"
-        CODEX_DETAIL="$CODEX_VERSION — 인증 만료 (\`codex login\` 필요)"
-      else
-        CODEX_STATE="not_logged_in"
-        CODEX_DETAIL="$CODEX_VERSION — 미인증 (\`codex login\` 필요)"
+      # --output-last-message: 선택적 — 정확한 long-form 이름만 검사 (short -o는 다른 옵션과 충돌 위험)
+      if echo "$_HELP" | grep -q -- "--output-last-message"; then
+        CODEX_HAS_OUTPUT_FLAG=1
       fi
-    else
-      CODEX_STATE="ready"
-      CODEX_DETAIL="$CODEX_VERSION (인증 상태 미확인)"
+      # 인증 확인 (login status 서브커맨드가 있을 때만) — login --help에도 timeout 적용
+      _LOGIN_HELP=$(_t 5 codex login --help 2>&1)
+      LOGIN_HELP_EXIT=$?
+      if [ "$LOGIN_HELP_EXIT" -eq 124 ]; then
+        CODEX_STATE="broken"
+        CODEX_DETAIL="$CODEX_VERSION — codex login --help timeout (5초)"
+      elif echo "$_LOGIN_HELP" | grep -q "status"; then
+        _AUTH=$(_t 5 codex login status 2>&1)
+        AUTH_EXIT=$?
+        if [ "$AUTH_EXIT" -eq 124 ]; then
+          CODEX_STATE="network_error"
+          CODEX_DETAIL="$CODEX_VERSION — codex login status timeout (5초)"
+        elif echo "$_AUTH" | grep -qiE "logged in|signed in|authenticated"; then
+          CODEX_STATE="ready"
+          CODEX_DETAIL="$CODEX_VERSION (인증 확인됨)"
+        elif echo "$_AUTH" | grep -qiE "rate.?limit|429|too many"; then
+          CODEX_STATE="rate_limited"
+          CODEX_DETAIL="$CODEX_VERSION — rate limit 초과"
+        elif echo "$_AUTH" | grep -qiE "network|connection|ENOTFOUND|timeout|ETIMEDOUT"; then
+          CODEX_STATE="network_error"
+          CODEX_DETAIL="$CODEX_VERSION — 네트워크 오류"
+        elif echo "$_AUTH" | grep -qiE "expired|invalid.*key|unauthorized|401"; then
+          CODEX_STATE="auth_expired"
+          CODEX_DETAIL="$CODEX_VERSION — 인증 만료 (\`codex login\` 필요)"
+        else
+          CODEX_STATE="not_logged_in"
+          CODEX_DETAIL="$CODEX_VERSION — 미인증 (\`codex login\` 필요)"
+        fi
+      else
+        CODEX_STATE="ready"
+        CODEX_DETAIL="$CODEX_VERSION (인증 상태 미확인)"
+      fi
     fi
   fi
 fi
