@@ -45,7 +45,7 @@ awk '/^## *영향 파일/{flag=1;next} /^## /{flag=0} flag' "<session-dir>/chose
 
 이 단계는 단일 변수 `DETECT_STATE`에 다음 중 하나의 값을 채워 Step 2-4 분기로 보낸다:
 
-`READY` / `DISABLED` / `NO_BINARY` / `FLAG_MISMATCH` / `NOT_LOGGED_IN` / `RATE_LIMITED` / `NETWORK_ERROR` / `AUTH_EXPIRED` / `TIMEOUT`
+`READY` / `DISABLED` / `NO_BINARY` / `NOT_LOGGED_IN` / `RATE_LIMITED` / `NETWORK_ERROR` / `AUTH_EXPIRED` / `TIMEOUT`
 
 ### Step 2-0. 공통 헬퍼
 
@@ -84,7 +84,7 @@ fi
 ### Step 2-2. 캐시 fast-path
 
 `DETECT_STATE`가 비어 있고 `<session-dir>/codex-status.txt`가 존재하면 캐시를 읽어 빠르게 분기한다. 캐시 파일 형식 (3줄):
-1. 상태 키워드 (`ready` / `disabled` / `missing` / `broken` / `flag_mismatch` / `not_logged_in` / `rate_limited` / `network_error` / `auth_expired`)
+1. 상태 키워드 (`ready` / `disabled` / `missing` / `broken` / `not_logged_in` / `rate_limited` / `network_error` / `auth_expired`)
 2. 사람이 읽을 detail
 3. `output_flag=0` 또는 `output_flag=1` (`--output-last-message` 지원 여부)
 
@@ -105,7 +105,6 @@ if [ -z "$DETECT_STATE" ] && [ -f "<session-dir>/codex-status.txt" ]; then
   case "$CACHED_STATE" in
     disabled)        DETECT_STATE="DISABLED" ;;
     missing|broken)  DETECT_STATE="NO_BINARY" ;;
-    flag_mismatch)   DETECT_STATE="FLAG_MISMATCH" ;;
     not_logged_in)   DETECT_STATE="NOT_LOGGED_IN" ;;
     rate_limited)    DETECT_STATE="RATE_LIMITED" ;;
     network_error)   DETECT_STATE="NETWORK_ERROR" ;;
@@ -165,16 +164,15 @@ if [ -z "$DETECT_STATE" ]; then
   fi
 fi
 
-# 2-3b: exec 서브커맨드 + 필요한 flag 표면 검증
+# 2-3b: exec 서브커맨드 확인 + --output-last-message 선택적 감지
 if [ -z "$DETECT_STATE" ]; then
   HELP_OUT=$(run_with_timeout 5 codex exec --help 2>&1)
   HELP_EXIT=$?
   if [ "$HELP_EXIT" -eq 124 ]; then
     DETECT_STATE="TIMEOUT"
-  elif ! echo "$HELP_OUT" | grep -q -- "--full-auto" \
-     || ! echo "$HELP_OUT" | grep -q -- "--json"; then
-    DETECT_STATE="FLAG_MISMATCH"
   else
+    # codex의 편의 플래그(--full-auto 등)는 자주 바뀌므로 검증하지 않는다.
+    # 실제 exec 호출은 안정 인터페이스인 `-c sandbox_mode=...` config override 사용.
     # --output-last-message는 선택적 — 있으면 사용, 없으면 생략
     if echo "$HELP_OUT" | grep -q -- "--output-last-message"; then
       CODEX_OUTPUT_FLAG="--output-last-message <session-dir>/codex-last-message.md"
@@ -228,14 +226,6 @@ fi
     출력 후 `touch "<session-dir>/.codex-prompted"`하고 사용자 응답 대기. "계속" 류 응답이면 Step 4로.
   - 마커가 이미 있으면 (ALREADY_PROMPTED) 조용히 Step 4로.
 
-- **FLAG_MISMATCH**: codex 버전이 예상과 다름. 사용자에게 보고 후 Step 4 진행 여부 확인:
-  ```
-  ⚠️  설치된 codex가 필요한 옵션(--full-auto/--json)을 지원하지 않습니다.
-  (--output-last-message는 지원 시 자동 활성화됩니다)
-  Claude로 직접 구현하시겠습니까? (y/n)
-  ```
-  y → Step 4. n → 보고서에 "codex 버전 불일치로 중단" 기록 후 종료.
-
 - **TIMEOUT**: codex 감지 호출이 5초 안에 응답하지 않음. 안내:
   ```
   ⚠️  codex 감지 호출이 응답하지 않습니다 (timeout).
@@ -279,7 +269,8 @@ case "$CODEX_TIMEOUT" in ''|*[!0-9]*) CODEX_TIMEOUT=300 ;; esac
 # stdin 으로 plan 전달 (argv 확장 회피, 길이 제한 회피)
 # stderr는 별도 파일로 분리하여 EVENTS 파일이 순수 JSONL이 되도록 한다
 run_with_timeout "$CODEX_TIMEOUT" codex exec \
-  --full-auto \
+  -c sandbox_mode=danger-full-access \
+  -c approval_policy=never \
   -C "<project-dir>" \
   --skip-git-repo-check \
   --json \

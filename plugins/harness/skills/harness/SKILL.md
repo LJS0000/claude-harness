@@ -125,17 +125,15 @@ else
     CODEX_DETAIL="codex 바이너리는 있으나 실행 실패 (exit=$VER_EXIT)"
   else
     CODEX_VERSION=$(_t 5 codex --version 2>/dev/null | head -1)
-    # 필요한 flag 표면 검증 — exec --help를 한 번만 호출하여 변수에 저장
+    # exec --help 출력을 한 번 가져와 --output-last-message 지원 여부만 확인
     _HELP=$(_t 10 codex exec --help 2>&1)
     HELP_EXIT=$?
     if [ "$HELP_EXIT" -eq 124 ]; then
       CODEX_STATE="broken"
       CODEX_DETAIL="$CODEX_VERSION — codex exec --help timeout (10초)"
-    elif ! echo "$_HELP" | grep -q -- "--full-auto" \
-       || ! echo "$_HELP" | grep -q -- "--json"; then
-      CODEX_STATE="flag_mismatch"
-      CODEX_DETAIL="$CODEX_VERSION — 필요한 옵션(--full-auto/--json) 누락"
     else
+      # codex의 편의 플래그(--full-auto 등)는 자주 바뀌므로 검증하지 않는다.
+      # 실제 exec 호출은 안정 인터페이스인 `-c sandbox_mode=...` config override 사용.
       # --output-last-message: 선택적 — 정확한 long-form 이름만 검사 (short -o는 다른 옵션과 충돌 위험)
       if echo "$_HELP" | grep -q -- "--output-last-message"; then
         CODEX_HAS_OUTPUT_FLAG=1
@@ -189,7 +187,6 @@ echo "CODEX_DETAIL=$CODEX_DETAIL"
 | `disabled` | `✗ codex 비활성: <CODEX_DETAIL> — Claude 직접 편집` |
 | `missing` | `✗ codex 미설치: <CODEX_DETAIL> — Claude 직접 편집` |
 | `broken` | `⚠️ codex 실행 불가: <CODEX_DETAIL> — Claude 직접 편집` |
-| `flag_mismatch` | `⚠️ codex 버전 불일치: <CODEX_DETAIL> — implementer 진입 시 사용자 확인` |
 | `not_logged_in` | `⚠️ codex 미인증: <CODEX_DETAIL> — implementer 진입 시 사용자 확인` |
 | `rate_limited` | `⚠️ codex rate limit: <CODEX_DETAIL> — 잠시 후 재시도` |
 | `network_error` | `⚠️ codex 네트워크 오류: <CODEX_DETAIL> — Claude 직접 편집` |
