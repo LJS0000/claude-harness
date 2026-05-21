@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.2
+
+- fix(harness): codex 편의 플래그 의존 제거 — `--full-auto` 대신 `-c sandbox_mode=danger-full-access -c approval_policy=never` config override 사용
+- flag 사전 검증 grep 블록 제거 (SKILL.md / implementer.md) — codex의 편의 플래그가 다시 바뀌어도 영향받지 않는다
+- `flag_mismatch` 상태 및 안내 분기 제거
+
 ## 0.11.1
 
 - fix(harness): codex 연동 하드닝 — `implementer.md`와 `harness/SKILL.md`의 동작 결함 6건과 방어적 개선 2건 정리
