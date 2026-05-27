@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.12.0
+
+- feat(harness): 적응형 파이프라인 도입 — 난이도 기반 단계 스킵으로 토큰 사용량 및 실행 시간 절감
+- Step 1.5 추가: 사용자 문제 설명을 분석하여 `simple` / `medium` / `complex` 중 하나로 난이도를 추정하고 사용자 확인 후 `HARNESS_MODE`를 결정
+- Step 2 조건부 실행: `simple` 모드에서 investigator 스킵, investigation.md를 stub으로 생성하여 후속 단계 호환성 유지
+- Step 3 simple 모드 분기: architect context에 `[HARNESS MODE: simple]` 표시 및 직접 탐색 지시 추가
+- Step 4 조건부 실행: `complex` 모드에서만 challenger 실행, 그 외에는 alternatives.md stub 생성
+- Step 5 모드별 선택지: simple은 architect 안 자동 채택, medium은 [A] + 자유 서술만 제시, complex는 현행 유지
+- Step 9 조건부 실행: `simple` 모드에서 reviewer 스킵 (1-2개 파일 변경은 implementer 완료 후 사용자 diff 검토로 충분)
+- Step 10 요약 보강: 모드, 실행된 단계, 스킵된 단계를 요약에 명시
+- Step 10.5 조건부 실행: retrospective는 `complex` 모드에서만 실행 (학습 가치가 높은 케이스에 한정)
+- `architect.md`: `simple` 모드 처리 섹션 추가 — investigation.md stub 감지, 직접 탐색, 간결한 plan 작성 지시
+- Context string format에 `[HARNESS MODE:]` 라인 추가 — 모든 서브에이전트가 모드를 인식
+- 예상 효과: simple 케이스 약 60% 토큰 절감, medium 케이스 약 30% 절감, complex 케이스 현행 유지
+
 ## 0.11.2
 
 - fix(harness): codex 편의 플래그 의존 제거 — `--full-auto` 대신 `-c sandbox_mode=danger-full-access -c approval_policy=never` config override 사용
