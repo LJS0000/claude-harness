@@ -201,6 +201,7 @@ Pass this block at the top of every sub-agent task:
 [HARNESS SESSION: <session-id>]
 [SESSION DIR: <session-dir>]
 [PROJECT DIR: <project-dir>]
+[HARNESS MODE: <simple|medium|complex>]
 문제: <original problem description>
 ```
 
@@ -209,15 +210,71 @@ When learnings are available (see Step 1), append the relevant advice section fo
 [HARNESS SESSION: <session-id>]
 [SESSION DIR: <session-dir>]
 [PROJECT DIR: <project-dir>]
+[HARNESS MODE: <simple|medium|complex>]
 문제: <original problem description>
 
 ## 이전 세션 교훈 (이 에이전트 대상)
 <역할별 필터링된 advice 내용>
 ```
 
+## Step 1.5: 난이도 추정 및 파이프라인 모드 결정
+
+사용자의 문제 설명을 분석하여 난이도를 1차 추정한다. 추정 기준:
+
+| 난이도 | 신호 | 파이프라인 |
+|--------|------|------------|
+| simple | 단일 파일 텍스트/설정 변경, 오타, 한 줄 수정, 명확한 단일 동작 | architect → implementer |
+| medium | 영향 파일 2-5개, 일반 기능 구현/버그 수정 | investigator → architect → implementer → reviewer |
+| complex | 영향 파일 5개+, 아키텍처 변경, 동시성/알고리즘 관련, 다중 시스템 통합 | 풀 파이프라인 (현행) |
+
+사용자에게 추정 결과와 실행될 단계 목록을 보여주고 확인을 받는다:
+
+```
+## 난이도 추정: <simple/medium/complex>
+
+다음 단계로 진행합니다:
+<단계 목록>
+
+다른 난이도를 지정하시려면 'simple', 'medium', 'complex' 중 하나를 입력하거나,
+이대로 진행하려면 'y'를 입력하세요.
+```
+
+사용자 응답으로 `$HARNESS_MODE` 변수를 결정하고 session.env에 저장:
+
+```bash
+printf "HARNESS_MODE='%s'\n" "$HARNESS_MODE" >> "$SESSION_DIR/session.env"
+```
+
 ## Step 2: investigator 호출
 
-Before calling the agent, run:
+```bash
+if [ "$HARNESS_MODE" = "simple" ]; then
+  echo "[harness] simple 모드 — investigator 스킵, architect가 직접 탐색"
+  # investigation.md를 stub으로 생성하여 후속 단계 호환성 유지
+  cat > "$SESSION_DIR/investigation.md" << 'EOF'
+# 조사 (스킵됨)
+
+simple 모드로 진행되어 investigator 단계가 스킵되었습니다.
+architect가 직접 코드를 탐색하여 계획을 수립합니다.
+
+## 원문 문제
+<원문 문제 설명>
+EOF
+else
+  printf '\033[1;34m[harness]\033[0m-\033[1;32m[investigator 실행 중...]\033[0m\n'
+
+  # investigator context string 구성. $ADVICE_INVESTIGATOR가 있으면 추가:
+  # \n\n## 이전 세션 교훈 (이 에이전트 대상)\n<$ADVICE_INVESTIGATOR>
+
+  # Agent("investigator", context_string) 호출
+
+  # 호출 후 결과 파일 존재 확인:
+  # test -f "<session-dir>/investigation.md" && echo "OK" || echo "MISSING"
+  # MISSING이면 오류 보고 후 재시도 또는 중단 여부를 사용자에게 확인
+fi
+```
+
+Before calling the agent (non-simple), run:
 ```bash
 printf '\033[1;34m[harness]\033[0m-\033[1;32m[investigator 실행 중...]\033[0m\n'
 ```
@@ -250,15 +307,40 @@ Build the architect context string. If `$ADVICE_ARCHITECT` is non-empty, append:
 \n\n## 이전 세션 교훈 (이 에이전트 대상)\n<$ADVICE_ARCHITECT>
 ```
 
+simple 모드일 때 architect context string에 다음 지시를 추가한다:
+```
+이 세션은 simple 모드입니다. investigator 단계가 스킵되었으므로, 필요시 직접 Read/Grep/Glob로 코드를 탐색하여 architecture.md를 작성하세요. 영향 파일은 1-2개로 좁게 식별하고, 대안 분석은 생략 가능합니다.
+```
+
 Call `Agent("architect", context_string)`.
 
 Verify `<session-dir>/architecture.md` exists. If MISSING: report and ask to retry or abort.
 
 ## Step 4: challenger 호출
 
+```bash
+if [ "$HARNESS_MODE" = "complex" ]; then
+  printf '\033[1;34m[harness]\033[0m-\033[1;32m[challenger 실행 중...]\033[0m\n'
+
+  # The challenger reads architecture.md and investigation.md from disk directly.
+  # The challenger does not receive targeted learnings — call with the standard context string.
+  # Agent("challenger", context_string) 호출
+  # Verify <session-dir>/alternatives.md exists. If MISSING: report and ask to retry or abort.
+else
+  echo "[harness] $HARNESS_MODE 모드 — challenger 스킵"
+  # alternatives.md를 stub으로 생성 (Step 5에서 읽기 호환성 유지)
+  cat > "$SESSION_DIR/alternatives.md" << 'EOF'
+# 대안 분석 (스킵됨)
+
+simple/medium 모드로 진행되어 challenger 단계가 스킵되었습니다.
+사용자는 architect 안 [A] 또는 자유 서술로 진행합니다.
+EOF
+fi
+```
+
 The challenger reads `architecture.md` and `investigation.md` from disk directly — do not pass content inline.
 
-Before calling the agent, run:
+Before calling the agent (complex only), run:
 ```bash
 printf '\033[1;34m[harness]\033[0m-\033[1;32m[challenger 실행 중...]\033[0m\n'
 ```
@@ -273,7 +355,24 @@ Verify `<session-dir>/alternatives.md` exists. If MISSING: report and ask to ret
 
 Read `<session-dir>/architecture.md` and `<session-dir>/alternatives.md`.
 
-Present this to the user and **stop to wait for their reply**:
+**simple 모드**: 선택지 제시를 생략한다. architect 안을 자동 채택하고 사용자에게 한 줄 안내한다:
+```
+simple 모드로 architect 안 채택, 구현으로 진행합니다.
+```
+
+**medium 모드**: [A] architect 안과 자유 서술 옵션만 제시한다 (challenger가 스킵되어 대안 없음):
+
+```
+## 구현 방향 선택
+
+**[A] 아키텍트 제안 (기본안)**
+<one-paragraph summary of the architect's plan>
+<architecture.md "제거 대상" 섹션이 "없음"이 아니면: "⚠️ 제거 대상: <불릿 목록>" 한 줄로 명시>
+
+원하는 방향의 글자를 입력하거나, 자유롭게 방향을 서술해 주세요.
+```
+
+**complex 모드**: 현행 그대로 모든 선택지를 제시한다:
 
 ```
 ## 구현 방향 선택
@@ -299,7 +398,7 @@ Present this to the user and **stop to wait for their reply**:
 
 각 방향의 "제거 대상"이 비어 있지 않으면 위와 같이 요약 아래에 한 줄로 노출하여, 사용자가 선택 시 제거 사항을 인지할 수 있도록 한다. Step 6.3의 승인 게이트는 선택 후에도 한 번 더 실행되므로, 여기서는 누락 시에도 게이트가 안전망 역할을 한다.
 
-**Do not call any more agents until the user replies.**
+**simple 모드를 제외한 모드에서는 사용자 응답을 기다린다. Do not call any more agents until the user replies.**
 
 ## Step 6: chosen-plan.md 작성
 
@@ -427,6 +526,7 @@ git -C "$PROJECT_DIR" worktree add -b "$BRANCH" "$WORKTREE_DIR" "$BASE_BRANCH"
   printf "BRANCH='%s'\n" "$BRANCH"
   printf "WORKTREE_DIR='%s'\n" "$WORKTREE_DIR"
   printf "PROJECT_DIR='%s'\n" "$PROJECT_DIR"
+  printf "HARNESS_MODE='%s'\n" "${HARNESS_MODE:-complex}"
 } > "$SESSION_DIR/session.env"
 
 # codex 상태를 session.env에 append (Step 1에서 결정된 값 사용)
@@ -495,7 +595,30 @@ This ensures the reviewer can discover the approved plan via its existing conven
 
 ## Step 9: reviewer 호출
 
-Before calling the agent, run:
+```bash
+if [ "$HARNESS_MODE" = "simple" ]; then
+  echo "[harness] simple 모드 — reviewer 스킵"
+  echo "SKIPPED (simple mode)" > "$SESSION_DIR/review-result.txt"
+else
+  printf '\033[1;34m[harness]\033[0m-\033[1;32m[reviewer 실행 중...]\033[0m\n'
+
+  # Pass the same worktree-based context to the reviewer (same as Step 7):
+  # [HARNESS SESSION: <session-id>]
+  # [SESSION DIR: <session-dir>]
+  # [PROJECT DIR: <worktree-dir>]
+  # [ORIGIN DIR: <project-dir>]
+  # [HARNESS MODE: <simple|medium|complex>]
+  # 문제: <original problem description>
+
+  # Build the reviewer context string from context_string_with_worktree.
+  # If $ADVICE_REVIEWER is non-empty, append:
+  # \n\n## 이전 세션 교훈 (이 에이전트 대상)\n<$ADVICE_REVIEWER>
+
+  # Agent("reviewer", context_string_with_worktree) 호출
+fi
+```
+
+Before calling the agent (non-simple), run:
 ```bash
 printf '\033[1;34m[harness]\033[0m-\033[1;32m[reviewer 실행 중...]\033[0m\n'
 ```
@@ -506,6 +629,7 @@ Pass the same worktree-based context to the reviewer (same as Step 7):
 [SESSION DIR: <session-dir>]
 [PROJECT DIR: <worktree-dir>]
 [ORIGIN DIR: <project-dir>]
+[HARNESS MODE: <simple|medium|complex>]
 문제: <original problem description>
 ```
 
@@ -518,6 +642,8 @@ Call `Agent("reviewer", context_string_with_worktree)`.
 
 The reviewer will find the plan at `~/.claude/plans/<session-id>.md` automatically.
 
+simple 모드에서는 1-2개 파일 변경이 implementer 완료 후 사용자 diff 검토로 충분하므로 reviewer를 스킵한다.
+
 ## Step 10: 최종 요약
 
 Output:
@@ -525,10 +651,13 @@ Output:
 ## 하네스 완료 요약
 
 세션: <session-id>
+모드: <simple|medium|complex>
+실행된 단계: <실행된 단계 목록>
+스킵된 단계: <스킵된 단계 목록 — 없으면 "없음">
 선택된 방향: <A/B/C/D or summary of free-form choice>
 
 구현 결과: <implementer completion report summary>
-리뷰 결과: PASS / FAIL
+리뷰 결과: PASS / FAIL / SKIPPED (simple 모드)
 
 <if FAIL: list the key issues from reviewer output>
 
@@ -590,7 +719,19 @@ PYEOF
 
 ## Step 10.5: retrospective 호출
 
-After the final summary (Step 10), invoke the retrospective agent to save lessons learned. This step is non-blocking — if it fails, log a warning and continue to Step 11.
+retrospective는 complex 모드에서만 실행한다. 학습 가치가 높은 복잡한 케이스에서 교훈을 누적하는 것이 목적이며, simple/medium 케이스는 스킵한다.
+
+```bash
+if [ "$HARNESS_MODE" = "complex" ]; then
+  printf '\033[1;34m[harness]\033[0m-\033[1;32m[retrospective 실행 중...]\033[0m\n'
+  mkdir -p "$HOME/.claude/harness-learnings"
+  # Build retrospective context and call Agent("retrospective", context_string)
+else
+  echo "[harness] $HARNESS_MODE 모드 — retrospective 스킵 (learnings는 complex 세션에서만 누적)"
+fi
+```
+
+After the final summary (Step 10), invoke the retrospective agent to save lessons learned (complex 모드만). This step is non-blocking — if it fails, log a warning and continue to Step 11.
 
 Before calling the agent, run:
 ```bash
@@ -603,6 +744,7 @@ Build the retrospective context string using the original project dir (not the w
 [HARNESS SESSION: <session-id>]
 [SESSION DIR: <session-dir>]
 [PROJECT DIR: <project-dir>]
+[HARNESS MODE: <simple|medium|complex>]
 문제: <original problem description>
 ```
 
@@ -643,7 +785,7 @@ Then proceed immediately to Step 11.
 
 ## Step 11: 자동 커밋 및 PR 생성
 
-리뷰 결과가 PASS이고 worktree가 생성된 경우에만 실행.
+리뷰 결과가 PASS 또는 SKIPPED이고 worktree가 생성된 경우에만 실행.
 
 Step 11 진입 시 session.env를 로드하여 BASE_BRANCH 등 Step 6.5에서 캡처한 값을 복원한다:
 ```bash

@@ -7,6 +7,14 @@ tools: Read, Grep, Glob, Write
 
 You are the architect agent. Your job is to produce a precise, minimal, safe implementation plan based on the investigator's findings.
 
+## simple 모드 처리
+
+context에 `[HARNESS MODE: simple]` 표시가 있으면 다음을 따른다:
+- investigation.md는 stub일 수 있다. 필요시 Read/Grep/Glob로 직접 코드를 탐색하라.
+- 대안 분석 섹션은 생략 가능하다.
+- architecture.md는 간결하게 작성한다 (영향 파일 + 변경 상세 + 제거 대상만 필수).
+- 위험 평가는 1-2줄로 압축한다.
+
 ## Input format
 
 The task message begins with a harness context block:
@@ -15,6 +23,7 @@ The task message begins with a harness context block:
 [HARNESS SESSION: <session-id>]
 [SESSION DIR: <session-dir>]
 [PROJECT DIR: <project-dir>]
+[HARNESS MODE: <simple|medium|complex>]
 문제: <problem description>
 ```
 
