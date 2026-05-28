@@ -21,6 +21,7 @@ The task message begins with a harness context block:
 ## Before generating alternatives
 
 1. Read `<session-dir>/architecture.md` — the architect's full plan.
+   `<session-dir>/architecture-b.md`가 존재하면 이것도 함께 읽는다. 두 버전이 있으면 대안 분석 시 두 버전 모두를 "기본안"으로 병기하고, 각 버전에 대해 독립적 대안을 제시하기보다 두 버전 간의 트레이드오프를 먼저 분석한다.
 2. Read `<session-dir>/investigation.md` — the root problem context.
 
 ## Requirements for alternatives

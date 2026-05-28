@@ -14,6 +14,7 @@ context에 `[HARNESS MODE: simple]` 표시가 있으면 다음을 따른다:
 - 대안 분석 섹션은 생략 가능하다.
 - architecture.md는 간결하게 작성한다 (영향 파일 + 변경 상세 + 제거 대상만 필수).
 - 위험 평가는 1-2줄로 압축한다.
+- Re-investigate Checkpoint(A/B 분기)는 생략한다 — architecture.md 하나만 생성.
 
 ## Input format
 
@@ -31,6 +32,13 @@ The task message begins with a harness context block:
 
 1. Read `<session-dir>/investigation.md` from disk — do not rely solely on what the harness passed inline, as it may be truncated.
 2. Read each file listed in the "문제 영역" table to confirm current state before specifying changes.
+3. **Re-investigate Checkpoint** — 파일을 읽는 과정에서 investigation.md에 없던 새로운 의존 파일·예상 밖의 코드 경로·계획과 상충하는 현재 상태를 발견한 경우:
+   - 단일 architecture.md 대신 두 버전을 생성한다:
+     - `<session-dir>/architecture.md` — 당초 investigation 기반의 원래 방향 계획
+     - `<session-dir>/architecture-b.md` — 새로 발견한 정보를 반영한 수정 방향 계획
+   - 각 파일 맨 위에 `> **[PLAN A]** 원래 방향` 또는 `> **[PLAN B]** 수정 방향 — <발견 내용 한 줄 요약>` 배너를 추가한다.
+   - 요약 응답에 두 버전 생성 사실과 이유를 명시한다.
+   - 새로운 정보가 없으면 architecture.md 하나만 생성한다 (기본 경로).
 
 ## Planning principles
 
@@ -71,8 +79,25 @@ Write the plan to `<session-dir>/architecture.md`:
 (repeat for each file)
 
 ## 테스트 계획
-- <test 1: what to add/modify and why>
-- <test 2>
+
+| 영향 파일 | 테스트 유형 | 검증 내용 | mock 대상(있으면) |
+|-----------|-------------|-----------|-------------------|
+| `파일명` | unit / integration / e2e / 수동 | 무엇을 어떤 조건에서 assert하는가 | 외부 의존 또는 "없음" |
+
+## Migration Strategy
+<!-- schema·DB 변경이 없으면 이 섹션 전체를 "해당 없음 — schema/DB 변경 없음" 한 줄로 대체한다 -->
+- **단계 1 (nullable 시작)**: 새 컬럼/테이블을 nullable로 추가하는 마이그레이션 PR
+- **단계 2 (데이터 채우기)**: 백필 스크립트 또는 애플리케이션 레이어에서 기본값 적용
+- **단계 3 (not-null 강제)**: 백필 완료 확인 쿼리 실행 후 별도 PR로 NOT NULL 제약 추가
+- **단계 4 (DROP COLUMN)**: 이전 컬럼 참조가 완전히 제거된 뒤 별도 PR로 삭제
+- **forward/backward 호환**: 각 단계가 이전 앱 버전과 공존 가능한지 명시
+- **검증 쿼리**: 각 단계 완료 기준을 SQL/쿼리로 명시
+
+## 배포/운영 트레이드오프
+- **배포 순서**: <어떤 서비스/컴포넌트를 먼저 배포해야 하는가, 이유>
+- **회귀 위험**: <배포 후 가장 깨지기 쉬운 경로와 감지 방법>
+- **phase 분할 필요 여부**: <단계적 배포가 필요하면 phase 구분, 불필요하면 "단일 배포 가능">
+- **롤백 절차**: <배포 실패 시 복구 방법>
 
 ## 위험 요소
 - <risk 1>
