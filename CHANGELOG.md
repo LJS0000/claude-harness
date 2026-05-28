@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.13.0
+
+- feat(harness): ultraharness MVP — 멀티 세션 간 도메인 이벤트 전파 레이어
+- 신규 훅 `record_uh_event.py` (PostToolUse) — 기존 `log_file_changes.py` 기능 흡수, 도메인 분류(`api_contract` / `design_token` / `general`), `~/.claude/ultraharness/events.jsonl` 단일 저장소에 append, 7일 TTL prune, stale 세션 필터링
+- 신규 훅 `report_uh_on_stop.py` (Stop) — 어시스턴트 응답 종료 시 미독취 도메인 이벤트를 텍스트 박스로 사용자에게 보고
+- 신규 훅 `inject_uh_on_prompt.py` (UserPromptSubmit) — "적용"/"스킵" 키워드 매칭, `git diff HEAD` 추출 후 다음 turn 컨텍스트에 prepend
+- `plugins/harness/skills/harness/SKILL.md` Step 6.5 / 11-C에 세션 등록·탈퇴 블록 추가 (fcntl flock으로 registry 동시 쓰기 보호)
+- `~/.claude/ultraharness/` 디렉토리 미존재 시 모든 훅이 즉시 noop — 기존 하네스 설치 호환
+- 제거: `plugins/harness/hooks/log_file_changes.py`, `~/.claude/logs/file-changes.jsonl` 신규 append (감사 로그가 `events.jsonl`로 일원화). 기존 로그 파일은 보존
+- README의 hook 항목 갱신
+
 ## 0.12.0
 
 - feat(harness): 적응형 파이프라인 도입 — 난이도 기반 단계 스킵으로 토큰 사용량 및 실행 시간 절감

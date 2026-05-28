@@ -518,6 +518,45 @@ esac
 
 git -C "$PROJECT_DIR" worktree add -b "$BRANCH" "$WORKTREE_DIR" "$BASE_BRANCH"
 
+# ultraharness 세션 등록 (~/.claude/ultraharness/ 디렉토리가 있을 때만 실행)
+python3 - << PYEOF
+import json, os, fcntl
+from datetime import datetime, timezone
+
+uh_dir = os.path.expanduser("~/.claude/ultraharness")
+if os.path.isdir(uh_dir):
+    registry_path = os.path.join(uh_dir, "registry.json")
+    os.makedirs(uh_dir, exist_ok=True)
+    try:
+        with open(registry_path, "a+", encoding="utf-8") as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
+            f.seek(0)
+            content = f.read().strip()
+            try:
+                registry = json.loads(content) if content else {"sessions": []}
+            except Exception:
+                registry = {"sessions": []}
+            session_id = os.environ.get("SESSION_ID", "")
+            project_dir = os.environ.get("PROJECT_DIR", "")
+            worktree_dir = os.environ.get("WORKTREE_DIR", "")
+            registry["sessions"] = [s for s in registry.get("sessions", []) if s.get("session_id") != session_id]
+            registry["sessions"].append({
+                "session_id": session_id,
+                "project_dir": project_dir,
+                "worktree_dir": worktree_dir,
+                "role": os.environ.get("ULTRAHARNESS_ROLE", "default"),
+                "registered_at": datetime.now(timezone.utc).isoformat(),
+                "status": "running",
+            })
+            f.seek(0)
+            f.truncate()
+            json.dump(registry, f, ensure_ascii=False, indent=2)
+            fcntl.flock(f, fcntl.LOCK_UN)
+        print(f"[ultraharness] 세션 {session_id} 등록 완료")
+    except Exception as e:
+        print(f"[ultraharness] 세션 등록 실패 (무시): {e}")
+PYEOF
+
 # session.env에 영속 저장 (Step 11에서 재로드)
 # 값을 single-quote로 감싸 공백 포함 경로도 안전하게 source 가능하도록 한다
 # (git 브랜치명과 하네스 경로는 single-quote를 포함하지 않으므로 안전)
@@ -847,6 +886,37 @@ gh pr create --base "$BASE_BRANCH" --head "harness/$SESSION_ID" --title "$PR_TIT
 **gh 미설치 시:** 브랜치명, 제목, 본문 후보를 출력하여 수동 PR 생성 안내.
 
 ### 11-C. 정리 안내
+
+PR 생성 성공 후 ultraharness 세션을 completed로 마킹한다:
+```bash
+python3 - << PYEOF
+import json, os, fcntl
+from datetime import datetime, timezone
+
+uh_dir = os.path.expanduser("~/.claude/ultraharness")
+if os.path.isdir(uh_dir):
+    registry_path = os.path.join(uh_dir, "registry.json")
+    if os.path.exists(registry_path):
+        try:
+            with open(registry_path, "r+", encoding="utf-8") as f:
+                fcntl.flock(f, fcntl.LOCK_EX)
+                content = f.read().strip()
+                try:
+                    registry = json.loads(content) if content else {"sessions": []}
+                except Exception:
+                    registry = {"sessions": []}
+                session_id = os.environ.get("SESSION_ID", "")
+                for s in registry.get("sessions", []):
+                    if s.get("session_id") == session_id:
+                        s["status"] = "completed"
+                f.seek(0)
+                f.truncate()
+                json.dump(registry, f, ensure_ascii=False, indent=2)
+                fcntl.flock(f, fcntl.LOCK_UN)
+        except Exception as e:
+            print(f"[ultraharness] 세션 마킹 실패 (무시): {e}")
+PYEOF
+```
 
 PR 생성 성공 후:
 ```
