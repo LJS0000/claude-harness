@@ -14,6 +14,10 @@ REGISTRY_PATH = os.path.join(UH_DIR, "registry.json")
 APPLY_KEYWORDS = ("적용", "apply", "반영", "동기화", "sync")
 SKIP_KEYWORDS = ("스킵", "skip", "무시", "ignore", "패스", "pass")
 
+# 태스크 상태 갱신 키워드 — SKIP_KEYWORDS의 "스킵"/"skip"과 겹치지 않도록 한정
+TASK_DONE_KEYWORDS = ("완료", "done", "complete", "태스크완료")
+TASK_SKIP_KEYWORDS = ("태스크스킵", "task-skip")
+
 # ultraharness 디렉토리가 없으면 noop
 if not os.path.isdir(UH_DIR):
     sys.exit(0)
@@ -78,12 +82,40 @@ def update_cursor(session_id: str, max_event_id: int) -> None:
         pass
 
 
+def _handle_task_update(user_msg: str) -> None:
+    """태스크 done/skip 키워드 + task-<id> 패턴이 있으면 manage_uh_tasks.py를 호출한다."""
+    import re
+    id_match = re.search(r'\btask-\d{8}-\d+\b', user_msg)
+    if not id_match:
+        return
+    task_id = id_match.group(0)
+    lower = user_msg.lower()
+    is_task_done = any(kw in lower for kw in TASK_DONE_KEYWORDS)
+    is_task_skip = any(kw in lower for kw in TASK_SKIP_KEYWORDS)
+    if not is_task_done and not is_task_skip:
+        return
+    tasks_py = os.path.join(os.path.dirname(os.path.abspath(__file__)), "manage_uh_tasks.py")
+    if not os.path.exists(tasks_py):
+        return
+    subcmd = "done" if is_task_done else "skip"
+    try:
+        subprocess.run(
+            ["python3", tasks_py, subcmd, "--id", task_id],
+            timeout=5
+        )
+    except Exception:
+        pass
+
+
 try:
     session_id = data.get("session_id", "")
     if not session_id:
         sys.exit(0)
 
     user_msg = get_user_message(data)
+
+    # 태스크 상태 갱신 처리 (이벤트 주입 흐름과 독립)
+    _handle_task_update(user_msg)
 
     is_apply = keyword_match(user_msg, APPLY_KEYWORDS)
     is_skip = keyword_match(user_msg, SKIP_KEYWORDS)

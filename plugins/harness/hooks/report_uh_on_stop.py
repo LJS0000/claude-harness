@@ -3,6 +3,7 @@
 import json
 import sys
 import os
+import subprocess
 from datetime import datetime, timezone
 
 UH_DIR = os.path.expanduser("~/.claude/ultraharness")
@@ -12,6 +13,27 @@ CURSORS_DIR = os.path.join(UH_DIR, "read-cursors")
 # ultraharness 디렉토리가 없으면 noop
 if not os.path.isdir(UH_DIR):
     sys.exit(0)
+
+# --- 태스크 큐 알림 (이벤트 로직과 독립) ---
+try:
+    _tasks_py = os.path.join(os.path.dirname(os.path.abspath(__file__)), "manage_uh_tasks.py")
+    if os.path.exists(_tasks_py):
+        _top_raw = subprocess.run(
+            ["python3", _tasks_py, "top"],
+            capture_output=True, text=True, timeout=5
+        ).stdout.strip()
+        if _top_raw:
+            _top = json.loads(_top_raw)
+            _pending_raw = subprocess.run(
+                ["python3", _tasks_py, "list", "--status", "pending"],
+                capture_output=True, text=True, timeout=5
+            ).stdout.strip()
+            _pending_count = len(json.loads(_pending_raw)) if _pending_raw else 0
+            print(f"\n대기 태스크 {_pending_count}건 | 최우선: [{_top['priority']}] {_top['title']}")
+            print("  → 처리하려면 /harness:queue list 또는 /harness 새 세션에서 확인")
+except Exception:
+    pass
+# --- 태스크 큐 알림 끝 ---
 
 try:
     data = json.load(sys.stdin)

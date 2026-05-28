@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.14.0
+
+- feat(harness): ultraharness 태스크 큐 — 로컬 JSONL 저장소 + `/harness:queue` 스킬 + Stop 훅 추천 + SKILL.md Step 1.75 자동 추천
+- 신규 스크립트 `plugins/harness/hooks/manage_uh_tasks.py` — `add / list / top / done / skip` CLI 서브커맨드, `~/.claude/ultraharness/tasks.jsonl` 원자적 CRUD (`os.replace()`), PRIORITY_ORDER(`P0 < P1 < P2`) 기반 정렬, 1000 레코드 초과 시 stderr 경고, `~/.claude/ultraharness/` 미존재 시 즉시 noop
+- 신규 스킬 `plugins/harness/skills/queue/SKILL.md` — `/harness:queue add|list|done|skip` 진입점, `manage_uh_tasks.py` 경로 자동 탐색, 오류 시 안내 메시지
+- `plugins/harness/hooks/report_uh_on_stop.py` — Stop 훅에 태스크 큐 알림 블록 추가. pending 태스크가 있으면 "대기 태스크 N건 | 최우선: [P0] ..." 한 줄 출력. 기존 이벤트 박스 로직 완전 보존 (`unseen` 체크와 독립)
+- `plugins/harness/hooks/inject_uh_on_prompt.py` — `TASK_DONE_KEYWORDS` / `TASK_SKIP_KEYWORDS` 추가, `task-<id>` 패턴과 함께 있을 때 `manage_uh_tasks.py done/skip` 호출. 기존 `SKIP_KEYWORDS`("스킵"/"skip")와 겹치지 않도록 `TASK_SKIP_KEYWORDS`는 "태스크스킵" / "task-skip"만 사용
+- `plugins/harness/skills/harness/SKILL.md` — Step 1.5 직전에 Step 1.75 큐 확인 블록 삽입. 사용자 입력 없고 P0 태스크 있으면 제안, 입력 있고 P0이면 한 줄 알림, 그 외 silent. `manage_uh_tasks.py` 미발견 시 silent skip
+
 ## 0.13.0
 
 - feat(harness): ultraharness MVP — 멀티 세션 간 도메인 이벤트 전파 레이어
