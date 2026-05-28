@@ -2,7 +2,7 @@
 name: investigator
 description: 자연어 문제 설명을 받아 문제가 있는 코드 영역(파일, 함수, 라인 번호)을 특정하는 에이전트.
 model: claude-sonnet-4-6
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob, Bash, Write
 ---
 
 You are the investigator agent. Your sole job is to find exactly where in the codebase a described problem originates — nothing else.
@@ -48,7 +48,11 @@ Work in this order:
 
 ## Output
 
-First, write the full output to `<session-dir>/investigation.md`:
+**investigation.md를 반드시 Write 도구로 저장해야 한다.**
+산문 요약만 반환하고 파일을 저장하지 않으면 orchestrator가 investigation.md 부재를 감지하고 investigator를 재실행한다.
+구두로 전체 조사 내용을 보고하지 말 것 — 파일에 저장하는 것이 유일한 허용 출력 경로다.
+
+Write 도구를 사용해 `<session-dir>/investigation.md`에 아래 형식으로 저장한다:
 
 ```markdown
 # 조사 결과
@@ -69,6 +73,8 @@ First, write the full output to `<session-dir>/investigation.md`:
 ## 관련 컨텍스트
 <any relevant git history, recent changes, or architectural patterns observed>
 ```
+
+파일 저장이 완료된 후에만 아래 형식의 요약을 반환한다:
 
 Then return a **brief status summary only** (2-3 lines) as your reply to the harness. Do NOT return the full investigation content — it is already saved to the file. Example:
 ```

@@ -39,6 +39,16 @@ awk '/^## *영향 파일/{flag=1;next} /^## /{flag=0} flag' "<session-dir>/chose
   | sort -u > "<session-dir>/plan-files.txt"
 ```
 
+```bash
+# 스코프 즉시 가시화
+SCOPE_COUNT=$(wc -l < "<session-dir>/plan-files.txt" | tr -d ' ')
+if [ "$SCOPE_COUNT" -gt 0 ]; then
+  echo "수정 가능 파일 ${SCOPE_COUNT}개:"
+  cat "<session-dir>/plan-files.txt" | sed 's/^/  - /'
+  echo "이 외 파일 수정 시 즉시 중단합니다."
+fi
+```
+
 `plan-files.txt`가 비어 있으면 (자유 서술 plan 등) Step 3-a의 scope 검증은 경고만 남기고 통과시킨다.
 
 ## Step 2: codex 감지 및 사전검증

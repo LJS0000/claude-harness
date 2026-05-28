@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.15.0
+
+- feat(agent): 에이전트 파이프라인 6가지 구조적 약점 보강 — investigator 저장 강제, architect 템플릿 확장, implementer 스코프 가시화, challenger A/B 대응
+- `agents/investigator.md`: frontmatter `tools`에 `Write` 추가; Output 섹션 첫 단락을 "investigation.md를 반드시 Write 도구로 저장 / 구두 보고 금지 / 미저장 시 orchestrator가 재실행" 강제 문구로 교체
+- `agents/architect.md`: Before planning에 **Re-investigate Checkpoint** 추가 — 계획 도중 새 정보 발견 시 `architecture.md`(원래 방향)와 `architecture-b.md`(수정 방향) 두 버전을 생성하고 challenger에게 함께 제시; simple 모드 처리 섹션에 A/B 분기 생략 규칙 명시
+- `agents/architect.md`: 출력 템플릿 확장 — `## 테스트 계획`을 영향 파일별 (테스트 유형 | 검증 내용 | mock 대상) 표로 표준화; `## Migration Strategy`(schema/DB 변경 한정 — nullable 시작 / 백필 / NOT NULL / DROP COLUMN 단계 + forward/backward 호환 + 검증 쿼리) 추가; `## 배포/운영 트레이드오프`(배포 순서 / 회귀 위험 / phase 분할 / 롤백) 추가
+- `agents/implementer.md`: Step 1 plan-files.txt 추출 직후 "수정 가능 파일 N개: ... / 이 외 수정 시 즉시 중단" echo 블록 삽입 — 사용자·에이전트가 진입 즉시 스코프를 인지
+- `agents/challenger.md`: Before generating alternatives 1번 단계에 `architecture-b.md` 조건부 읽기 추가 — 두 버전 존재 시 둘 다 "기본안"으로 병기하고 트레이드오프를 먼저 분석
+
 ## 0.14.0
 
 - feat(harness): ultraharness 태스크 큐 — 로컬 JSONL 저장소 + `/harness:queue` 스킬 + Stop 훅 추천 + SKILL.md Step 1.75 자동 추천
