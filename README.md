@@ -8,7 +8,7 @@ Personal Claude Code safety harness packaged as a plugin. Ships safety hooks and
 
 - **`block_dangerous.py`** — blocks destructive Bash commands (`rm`, `git reset --hard`, `git push --force`, `DROP TABLE`, etc.)
 - **`protect_sensitive.py`** — blocks reads/writes of `.env`, `credentials`, `*.pem`, and sensitive Bash patterns (`printenv`, `curl | sh`, etc.)
-- **`log_file_changes.py`** — audit log of all `Edit`/`Write`/`MultiEdit` operations to `~/.claude/logs/file-changes.jsonl`
+- **`record_uh_event.py`** — records all `Edit`/`Write`/`MultiEdit` operations to `~/.claude/ultraharness/events.jsonl` with domain classification (api_contract / design_token / general) and 7-day TTL pruning
 
 ### Multi-agent workflow (`/agent:harness`)
 
