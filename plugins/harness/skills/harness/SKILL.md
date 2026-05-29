@@ -636,9 +636,15 @@ Based on `investigation.md` and `chosen-plan.md`, assess implementation difficul
 | **복잡** | 영향 파일 5개+, 아키텍처 변경, 알고리즘·동시성 관련 | `claude-opus-4-6` |
 
 Announce the assessment:
-```
-구현 난이도: <단순/보통/복잡>
-사용 모델: <model-id>  (codex CLI 사용 가능 시 implementer가 우선 사용; 환경변수 HARNESS_USE_CODEX=0으로 비활성화)
+```bash
+CODEX_STATUS_FIRST=$(sed -n '1p' "<session-dir>/codex-status.txt" 2>/dev/null || echo "unknown")
+if [ "$CODEX_STATUS_FIRST" = "ready" ] && [ "${HARNESS_USE_CODEX:-1}" != "0" ]; then
+  printf "구현 난이도: %s\n사용 모델: %s\n구현 방식: → codex로 구현 시도 (fallback: Claude 직접 편집)\n" \
+    "<난이도>" "<model-id>"
+else
+  printf "구현 난이도: %s\n사용 모델: %s\n구현 방식: → Claude 직접 편집 (codex 상태: %s)\n" \
+    "<난이도>" "<model-id>" "$CODEX_STATUS_FIRST"
+fi
 ```
 
 Before calling the agent, run:
@@ -725,6 +731,10 @@ simple 모드에서는 1-2개 파일 변경이 implementer 완료 후 사용자 
 ## Step 10: 최종 요약
 
 Output:
+```bash
+IMPL_METHOD=$(cat "<session-dir>/implementation-method.txt" 2>/dev/null || echo "알 수 없음")
+```
+
 ```
 ## 하네스 완료 요약
 
@@ -734,6 +744,7 @@ Output:
 스킵된 단계: <스킵된 단계 목록 — 없으면 "없음">
 선택된 방향: <A/B/C/D or summary of free-form choice>
 
+구현 방식: <IMPL_METHOD>
 구현 결과: <implementer completion report summary>
 리뷰 결과: PASS / FAIL / SKIPPED (simple 모드)
 
