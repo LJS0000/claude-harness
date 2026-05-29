@@ -41,7 +41,14 @@ Write exactly this structure (valid JSON, no trailing commas, no comments):
   "advice_for_architect": "<concrete actionable advice for future architect agents>",
   "advice_for_implementer": "<concrete actionable advice for future implementer agents>",
   "advice_for_reviewer": "<concrete actionable advice for future reviewer agents>",
-  "general_patterns": "<cross-cutting patterns or anti-patterns observed in this session>"
+  "general_patterns": "<cross-cutting patterns or anti-patterns observed in this session>",
+  "follow_up_tasks": [
+    {
+      "title": "<명확하고 실행 가능한 후속 태스크 제목>",
+      "description": "<선택적 상세 설명, 최대 200자>",
+      "priority": "P1"
+    }
+  ]
 }
 ```
 
@@ -56,6 +63,9 @@ Write exactly this structure (valid JSON, no trailing commas, no comments):
   ```
 - Use the Write tool to write the JSON file directly. Do not print the JSON to stdout.
 - After writing, confirm the file path.
+- `follow_up_tasks`는 이번 세션에서 해결되지 않았거나 다음 세션에서 반드시 수행해야 할 구체적 작업 항목만 포함한다. 없으면 빈 배열 `[]`.
+- 항목당 title은 명령형 동사로 시작, 100자 이내.
+- `follow_up_tasks` 최대 5개.
 
 ## Output
 

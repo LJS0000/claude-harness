@@ -14,6 +14,11 @@ CURSORS_DIR = os.path.join(UH_DIR, "read-cursors")
 if not os.path.isdir(UH_DIR):
     sys.exit(0)
 
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    data = {}
+
 # --- 태스크 큐 알림 (이벤트 로직과 독립) ---
 try:
     _tasks_py = os.path.join(os.path.dirname(os.path.abspath(__file__)), "manage_uh_tasks.py")
@@ -35,13 +40,23 @@ except Exception:
     pass
 # --- 태스크 큐 알림 끝 ---
 
+# --- 태스크 sync 백그라운드 트리거 ---
 try:
-    data = json.load(sys.stdin)
+    _sync_py = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sync_uh_tasks.py")
+    if os.path.exists(_sync_py):
+        _project_dir = data.get("cwd", "") if isinstance(data, dict) else ""
+        subprocess.Popen(
+            ["python3", _sync_py, _project_dir],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
 except Exception:
-    sys.exit(0)
+    pass
+# --- 태스크 sync 백그라운드 트리거 끝 ---
 
 try:
-    session_id = data.get("session_id", "")
+    session_id = data.get("session_id", "") if isinstance(data, dict) else ""
     if not session_id:
         sys.exit(0)
 

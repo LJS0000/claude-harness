@@ -39,6 +39,11 @@ def _load_tasks() -> list:
             f"경고: tasks.jsonl이 {len(tasks)}개 레코드를 초과했습니다. 오래된 done/skipped 레코드 정리를 고려하세요.",
             file=sys.stderr,
         )
+    # 기존 jsonl 호환: 누락 필드를 기본값으로 채운다
+    for t in tasks:
+        t.setdefault("source", "manual")
+        t.setdefault("source_id", "")
+        t.setdefault("auto_managed", False)
     return tasks
 
 
@@ -82,10 +87,85 @@ def cmd_add(args) -> None:
         "updated_at": now,
         "created_by_session": session_id,
         "tags": tags,
+        "source":       args.source or "manual",
+        "source_id":    args.source_id or "",
+        "auto_managed": args.source not in (None, "", "manual"),
     }
     with open(TASKS_FILE, "a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
     print(json.dumps(record, ensure_ascii=False))
+
+
+def cmd_sync(args) -> None:
+    """외부 소스에서 수집한 항목을 tasks.jsonl에 upsert하고, 사라진 항목을 자동 done 처리한다."""
+    source = args.source
+    incoming = json.loads(args.items_json)  # list[dict]
+    incoming_ids = {item["source_id"] for item in incoming}
+
+    tasks = _load_tasks()
+    by_source_id = {
+        t["source_id"]: t
+        for t in tasks
+        if t.get("source") == source and t.get("source_id")
+    }
+
+    now = _now_iso()
+    changed = False
+
+    # 1) 사라진 항목 → done (pending인 것만)
+    for sid, t in by_source_id.items():
+        if sid not in incoming_ids and t.get("status") == "pending":
+            t["status"] = "done"
+            t["updated_at"] = now
+            changed = True
+
+    # 2) 신규 항목 → append; 기존 항목 → 제목/설명 업데이트만 (상태 변경 없음)
+    existing_ids = set(by_source_id.keys())
+    new_records = []
+    today = datetime.now(timezone.utc).strftime("%Y%m%d")
+    today_prefix = f"task-{today}-"
+    seq = sum(1 for t in tasks if t.get("task_id", "").startswith(today_prefix)) + 1
+    for item in incoming:
+        sid = item["source_id"]
+        if sid in existing_ids:
+            # 제목·설명·우선순위가 변경된 경우만 업데이트 (status 보존)
+            t = by_source_id[sid]
+            if (t.get("title") != item.get("title") or
+                    t.get("description", "") != item.get("description", "") or
+                    t.get("priority") != item.get("priority", "P1")):
+                t["title"] = item.get("title", t["title"])
+                t["description"] = item.get("description", t.get("description", ""))
+                t["priority"] = item.get("priority", "P1")
+                t["updated_at"] = now
+                changed = True
+        else:
+            task_id = f"{today_prefix}{seq:03d}"
+            seq += 1
+            new_records.append({
+                "task_id": task_id,
+                "title": item.get("title", ""),
+                "description": item.get("description", ""),
+                "priority": item.get("priority", "P1"),
+                "status": "pending",
+                "created_at": now,
+                "updated_at": now,
+                "created_by_session": "",
+                "tags": item.get("tags", []),
+                "source": source,
+                "source_id": sid,
+                "auto_managed": True,
+            })
+            changed = True
+
+    auto_done_ids = set(by_source_id.keys()) - incoming_ids
+    auto_done_count = sum(
+        1 for t in tasks
+        if t.get("source") == source and t.get("source_id") in auto_done_ids and t.get("status") == "done"
+    )
+
+    if changed or new_records:
+        _save_tasks(tasks + new_records)
+    print(json.dumps({"upserted": len(new_records), "auto_done": auto_done_count}, ensure_ascii=False))
 
 
 def cmd_list(args) -> None:
@@ -139,6 +219,12 @@ def main() -> None:
     p_add.add_argument("--priority", default="P1", choices=["P0", "P1", "P2"], help="우선순위 (기본값: P1)")
     p_add.add_argument("--desc", default="", help="상세 설명 (선택)")
     p_add.add_argument("--tags", default="", help="쉼표 구분 태그 (선택)")
+    p_add.add_argument("--source", default="manual", help="소스 유형")
+    p_add.add_argument("--source-id", dest="source_id", default="", help="stable source key")
+
+    p_sync = sub.add_parser("sync", help="외부 소스 항목 upsert 및 자동 done 처리")
+    p_sync.add_argument("--source", required=True, help="소스 유형")
+    p_sync.add_argument("--items-json", dest="items_json", required=True, help="항목 JSON 배열 문자열")
 
     p_list = sub.add_parser("list", help="태스크 목록 조회")
     p_list.add_argument("--status", default="pending", choices=["pending", "done", "all"], help="필터 (기본값: pending)")
@@ -158,6 +244,7 @@ def main() -> None:
 
     dispatch = {
         "add": cmd_add,
+        "sync": cmd_sync,
         "list": cmd_list,
         "top": cmd_top,
         "done": cmd_done,

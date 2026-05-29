@@ -11,12 +11,15 @@ EVENTS_PATH = os.path.join(UH_DIR, "events.jsonl")
 CURSORS_DIR = os.path.join(UH_DIR, "read-cursors")
 REGISTRY_PATH = os.path.join(UH_DIR, "registry.json")
 
-APPLY_KEYWORDS = ("적용", "apply", "반영", "동기화", "sync")
+APPLY_KEYWORDS = ("적용", "apply", "반영")   # "sync", "동기화" 제거
 SKIP_KEYWORDS = ("스킵", "skip", "무시", "ignore", "패스", "pass")
 
 # 태스크 상태 갱신 키워드 — SKIP_KEYWORDS의 "스킵"/"skip"과 겹치지 않도록 한정
 TASK_DONE_KEYWORDS = ("완료", "done", "complete", "태스크완료")
 TASK_SKIP_KEYWORDS = ("태스크스킵", "task-skip")
+
+# 사용자 메시지 TODO 캡처 — 명시적 prefix만 인식 (오탐 방지)
+TODO_CAPTURE_PREFIXES = ("TODO:", "FIXME:", "나중에:", "할일:")
 
 # ultraharness 디렉토리가 없으면 noop
 if not os.path.isdir(UH_DIR):
@@ -107,6 +110,47 @@ def _handle_task_update(user_msg: str) -> None:
         pass
 
 
+def _handle_todo_capture(user_msg: str, session_id: str) -> None:
+    """명시적 TODO prefix가 있는 사용자 메시지를 task로 등록한다.
+    task-YYYYMMDD-NNN 패턴이 있는 메시지는 기존 태스크 업데이트이므로 건너뛴다."""
+    import re
+    import hashlib
+    # 기존 task 업데이트 메시지는 건너뜀
+    if re.search(r'\btask-\d{8}-\d+\b', user_msg):
+        return
+    stripped = user_msg.strip()
+    matched_prefix = None
+    for prefix in TODO_CAPTURE_PREFIXES:
+        if stripped.startswith(prefix):
+            matched_prefix = prefix
+            break
+    if matched_prefix is None:
+        return
+    title = stripped[len(matched_prefix):].strip().splitlines()[0][:120]
+    if not title:
+        return
+
+    tasks_py = os.path.join(os.path.dirname(os.path.abspath(__file__)), "manage_uh_tasks.py")
+    if not os.path.exists(tasks_py):
+        return
+
+    # source_id: "msg:<session_id>:<title_hash>" — 동일 세션 내 중복 방지
+    title_hash = hashlib.sha1(title.encode()).hexdigest()[:8]
+    source_id = f"msg:{session_id}:{title_hash}"
+
+    try:
+        subprocess.run(
+            ["python3", tasks_py, "add",
+             "--title", title,
+             "--priority", "P2",
+             "--source", "user_message",
+             "--source-id", source_id],
+            timeout=5
+        )
+    except Exception:
+        pass
+
+
 try:
     session_id = data.get("session_id", "")
     if not session_id:
@@ -116,6 +160,7 @@ try:
 
     # 태스크 상태 갱신 처리 (이벤트 주입 흐름과 독립)
     _handle_task_update(user_msg)
+    _handle_todo_capture(user_msg, session_id)
 
     is_apply = keyword_match(user_msg, APPLY_KEYWORDS)
     is_skip = keyword_match(user_msg, SKIP_KEYWORDS)

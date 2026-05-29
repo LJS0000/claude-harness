@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.17.0
+
+- feat(harness): ultraharness task 큐 자동 sync — 4가지 소스(GitHub Issues, retrospective follow_up_tasks, 코드 TODO/FIXME, 사용자 메시지) 수집 파이프라인 추가
+- 신규 스크립트 `plugins/harness/hooks/sync_uh_tasks.py` — Stop 훅에서 Popen으로 실행되는 독립 sync 스크립트. `collect_github_issues()` / `collect_retrospective_tasks()` / `collect_todo_comments()` 3개 수집 함수, 30분 throttle(`last_sync.txt` mtime 기반), gh 미설치·오프라인 시 빈 리스트 반환 안전 처리
+- `plugins/harness/hooks/manage_uh_tasks.py` — task 레코드 스키마에 `source` / `source_id` / `auto_managed` 3개 필드 추가; `_load_tasks()` 반환 시 기존 jsonl 누락 필드 setdefault 정규화; `sync` 서브커맨드(`cmd_sync`) 추가 — source별 upsert(제목·설명·우선순위 변경 감지) + 사라진 pending 항목 자동 done; O(N) seq 카운터로 신규 task_id 생성; `p_add`에 `--source` / `--source-id` 인자 추가(`dest="source_id"`)
+- `plugins/harness/hooks/report_uh_on_stop.py` — `json.load(sys.stdin)` 최상단으로 이동 후 sync Popen 블록 삽입(`start_new_session=True`로 훅 종료 후에도 sync 프로세스 유지); `data` 파싱 실패 시 빈 dict로 폴백하여 태스크 큐 알림은 계속 동작
+- `plugins/harness/hooks/inject_uh_on_prompt.py` — `APPLY_KEYWORDS`에서 `"sync"` / `"동기화"` 제거; `TODO_CAPTURE_PREFIXES` 상수 추가; `_handle_todo_capture(user_msg, session_id)` 함수 추가 — 명시적 prefix(`TODO:` / `FIXME:` / `나중에:` / `할일:`) 감지 후 `manage_uh_tasks.py add`로 등록, source_id `msg:<session_id>:<title_hash8>`로 dedupe
+- `plugins/harness/agents/retrospective.md` — JSON 스키마에 `follow_up_tasks` 배열 필드 추가; Rules에 작성 지침 추가(명령형 동사 시작, 100자 이내, 최대 5개, 없으면 `[]`)
+
 ## 0.16.1
 
 - refactor(harness): PR 템플릿에서 자동 생성 푸터 제거
