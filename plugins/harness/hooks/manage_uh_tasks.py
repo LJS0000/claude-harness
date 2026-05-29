@@ -12,7 +12,7 @@ PRIORITY_ORDER = {"P0": 0, "P1": 1, "P2": 2}
 
 WARN_THRESHOLD = 1000
 
-# noop 가드
+# noop 가드 — UH_DIR 없으면 조용히 종료 (부모 hook이 경고를 담당)
 if not os.path.isdir(UH_DIR):
     sys.exit(0)
 

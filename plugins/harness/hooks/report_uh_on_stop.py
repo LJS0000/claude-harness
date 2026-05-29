@@ -4,14 +4,20 @@ import json
 import sys
 import os
 import subprocess
+import time
 from datetime import datetime, timezone
+
+try:
+    from uh_utils import warn_if_missing
+except ImportError:
+    def warn_if_missing(label: str = "") -> bool:  # type: ignore[misc]
+        return False
 
 UH_DIR = os.path.expanduser("~/.claude/ultraharness")
 EVENTS_PATH = os.path.join(UH_DIR, "events.jsonl")
 CURSORS_DIR = os.path.join(UH_DIR, "read-cursors")
 
-# ultraharness 디렉토리가 없으면 noop
-if not os.path.isdir(UH_DIR):
+if warn_if_missing("report_uh_on_stop"):
     sys.exit(0)
 
 try:

@@ -4,7 +4,14 @@ import json
 import sys
 import os
 import subprocess
+import time
 from datetime import datetime, timezone
+
+try:
+    from uh_utils import warn_if_missing
+except ImportError:
+    def warn_if_missing(label: str = "") -> bool:  # type: ignore[misc]
+        return False
 
 UH_DIR = os.path.expanduser("~/.claude/ultraharness")
 EVENTS_PATH = os.path.join(UH_DIR, "events.jsonl")
@@ -21,8 +28,7 @@ TASK_SKIP_KEYWORDS = ("태스크스킵", "task-skip")
 # 사용자 메시지 TODO 캡처 — 명시적 prefix만 인식 (오탐 방지)
 TODO_CAPTURE_PREFIXES = ("TODO:", "FIXME:", "나중에:", "할일:")
 
-# ultraharness 디렉토리가 없으면 noop
-if not os.path.isdir(UH_DIR):
+if warn_if_missing("inject_uh_on_prompt"):
     sys.exit(0)
 
 try:

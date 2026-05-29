@@ -5,7 +5,14 @@
 import json
 import sys
 import os
+import time
 from datetime import datetime, timezone, timedelta
+
+try:
+    from uh_utils import warn_if_missing
+except ImportError:
+    def warn_if_missing(label: str = "") -> bool:  # type: ignore[misc]
+        return False
 
 UH_DIR = os.path.expanduser("~/.claude/ultraharness")
 REGISTRY_PATH = os.path.join(UH_DIR, "registry.json")
@@ -13,8 +20,7 @@ EVENTS_PATH = os.path.join(UH_DIR, "events.jsonl")
 PRUNE_DAYS = 7
 MAX_EVENTS_SIZE = 1024 * 1024  # 1 MB 경고 임계값
 
-# ultraharness 디렉토리가 없으면 noop (미사용 환경 호환)
-if not os.path.isdir(UH_DIR):
+if warn_if_missing("record_uh_event"):
     sys.exit(0)
 
 try:
