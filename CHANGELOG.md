@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.16.0
+
+- feat(harness): implementer 실행 경로(codex / Claude 직접 편집) 가시성 강화
+- `agents/implementer.md`:
+  - DISABLED 분기의 "조용히 진행" 정책 폐기 — `[implementer] ✗ codex 스킵 → Claude 직접 편집으로 진행 (이유: HARNESS_USE_CODEX=0)` 출력
+  - Step 3 진입 시 `[implementer] codex 실행 중... (plan → codex exec)` 출력
+  - Step 3-c 정상 완료 시 events 줄 수와 함께 `[implementer] ✓ codex 완료 (exit=0, events=N)` 출력
+  - Step 3-b 폴백 [1]/[2]/[3] 각 분기와 Step 4 직접 편집 완료에서 `<session-dir>/implementation-method.txt` 마커 기록 (Step 4는 `if [ ! -f ]` 가드로 중복 덮어쓰기 방지)
+  - Completion report `## 사용된 방법` 섹션에 마커 파일 동시 기록 안내 추가
+- `skills/harness/SKILL.md`:
+  - Step 7 implementer 호출 전 안내를 `codex-status.txt` 1번째 줄 기반 두 갈래로 개선 — `ready` 시 "→ codex로 구현 시도", 그 외 "→ Claude 직접 편집 (codex 상태: ...)"
+  - Step 10 최종 요약에 `구현 방식: <IMPL_METHOD>` 한 줄 추가 (마커 파일에서 읽음, 부재 시 "알 수 없음" 폴백)
+
 ## 0.15.0
 
 - feat(agent): 에이전트 파이프라인 6가지 구조적 약점 보강 — investigator 저장 강제, architect 템플릿 확장, implementer 스코프 가시화, challenger A/B 대응
