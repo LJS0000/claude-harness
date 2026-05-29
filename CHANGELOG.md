@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.1
+
+- refactor(harness): PR 템플릿에서 자동 생성 푸터 제거
+- `plugins/harness/skills/harness/SKILL.md`: PR 미리보기 템플릿의 `---` 구분선과 `_하네스 세션 <session-id>에서 자동 생성_` 푸터 삭제 — CLAUDE.md "작성 주체 규칙" 준수
+
 ## 0.16.0
 
 - feat(harness): implementer 실행 경로(codex / Claude 직접 편집) 가시성 강화
