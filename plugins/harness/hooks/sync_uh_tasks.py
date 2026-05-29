@@ -17,13 +17,28 @@ TODO_EXTENSIONS = {".py", ".ts", ".js", ".tsx", ".jsx", ".go", ".java", ".sh", "
 TODO_MAX_COUNT = 50         # source=todo_comment 최대 수집 건수
 
 
+def _log_skip(reason: str) -> None:
+    """UH_DIR 내 uh_skip.log에 타임스탬프와 함께 기록한다 (디버깅용)."""
+    try:
+        log_path = os.path.join(UH_DIR, "uh_skip.log")
+        with open(log_path, "a", encoding="utf-8") as f:
+            ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            f.write(f"{ts} {reason}\n")
+    except Exception:
+        pass
+
+
 def _should_run() -> bool:
     if not os.path.isdir(UH_DIR):
+        # DEVNULL 환경이므로 stderr 불가 — 로그 파일도 쓸 수 없음(UH_DIR 없음)
+        # 그냥 False 반환 (부모 hook report_uh_on_stop이 경고를 담당)
         return False
     if os.path.exists(SYNC_STAMP_FILE):
         try:
             mtime = os.path.getmtime(SYNC_STAMP_FILE)
             if time.time() - mtime < SYNC_THROTTLE_SECS:
+                # throttle로 인한 skip은 로그에 기록 (디버깅용)
+                _log_skip("sync_uh_tasks: throttled, skipping")
                 return False
         except Exception:
             pass

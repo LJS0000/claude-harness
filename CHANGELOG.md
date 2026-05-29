@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.17.1
+
+- fix(harness): ultraharness 훅이 `~/.claude/ultraharness` 디렉터리 부재 시 출력 없이 종료하던 silent skip 동작 수정
+- 신규 `plugins/harness/hooks/uh_utils.py` — `warn_if_missing(label)` 헬퍼 제공. 24시간 throttle stamp(`~/.claude/ultraharness.warn_stamp`, UH_DIR 바깥에 위치)를 3개 직접 hook이 공유하여 stderr 경고를 1일 1회만 출력
+- `plugins/harness/hooks/inject_uh_on_prompt.py` / `record_uh_event.py` / `report_uh_on_stop.py` — silent `if not os.path.isdir(UH_DIR): sys.exit(0)` 를 `warn_if_missing(...)` 호출로 교체. `uh_utils` 미배포 환경 대비 `try/except ImportError` fallback 포함 — fallback은 False 반환으로 graceful degradation
+- `plugins/harness/hooks/manage_uh_tasks.py` — 부모 hook이 경고를 담당하므로 silent 유지, 가드 주석만 `# noop 가드 — UH_DIR 없으면 조용히 종료 (부모 hook이 경고를 담당)`으로 명확화
+- `plugins/harness/hooks/sync_uh_tasks.py` — DEVNULL 백그라운드 환경이라 stderr 불가. `_log_skip(reason)` 내부 헬퍼 추가 후 `_should_run()`의 30분 throttle 경로에서 `~/.claude/ultraharness/uh_skip.log`에 기록. UH_DIR 부재 경로는 로그 파일도 쓸 수 없으므로 silent 유지(부모 hook 경고에 의존)
+
 ## 0.17.0
 
 - feat(harness): ultraharness task 큐 자동 sync — 4가지 소스(GitHub Issues, retrospective follow_up_tasks, 코드 TODO/FIXME, 사용자 메시지) 수집 파이프라인 추가
