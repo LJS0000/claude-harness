@@ -908,9 +908,6 @@ git commit -m "<conventional-commit-message>"
 ## 구현 방향
 <chosen-plan.md 요약>
 
----
-_하네스 세션 <session-id>에서 자동 생성_
-
 이대로 PR을 생성하시겠습니까? (y/n, 또는 수정 사항을 입력해 주세요)
 ```
 
