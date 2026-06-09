@@ -8,7 +8,7 @@ Personal Claude Code safety harness packaged as a plugin. Ships safety hooks and
 
 - **`block_dangerous.py`** — blocks destructive Bash commands (`rm`, `git reset --hard`, `git push --force`, `DROP TABLE`, etc.)
 - **`protect_sensitive.py`** — blocks reads/writes of `.env`, `credentials`, `*.pem`, and sensitive Bash patterns (`printenv`, `curl | sh`, etc.)
-- **`record_uh_event.py`** — records all `Edit`/`Write`/`MultiEdit` operations to `~/.claude/ultraharness/events.jsonl` with domain classification (api_contract / design_token / general) and 7-day TTL pruning
+- **`check_updates.py`** — daily auto-update check against the upstream plugin (once per 24 h)
 
 ### Multi-agent workflow (`/agent:harness`)
 
@@ -74,19 +74,6 @@ After installing, **remove any duplicate hook entries** from `~/.claude/settings
 | `block_dangerous` | `PreToolUse:Bash` | `rm`, `unlink`, `git reset --hard`, `git push --force`/`-f`, `git clean -f`, `git checkout .`, `git stash drop`, `git branch -D`, `DROP DATABASE/TABLE`, `TRUNCATE TABLE` |
 | `protect_sensitive` | `PreToolUse:Bash` | `cat ... .env`, `printenv`, bare `env`, `curl \| bash`, `wget \| bash`, `echo $SECRET` |
 | `protect_sensitive` | `PreToolUse:Edit\|Write\|MultiEdit\|Read` | `.env*`, `secret*`, `credential*`, `private_key*`, `*.pem`, `*.p12`, `*.pfx` |
-
-## Audit log
-
-File change log lives at `~/.claude/logs/file-changes.jsonl`. Each line is a JSON record:
-
-```json
-{"ts":"2026-04-09T09:12:34Z","session":"...","tool":"Edit","file":"/path/to/file","project":"repo-name","ok":true}
-```
-
-Tail it during development:
-```
-tail -f ~/.claude/logs/file-changes.jsonl
-```
 
 ## Local development
 

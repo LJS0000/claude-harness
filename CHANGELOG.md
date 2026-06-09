@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.18.0
+
+- feat(harness): ultraharness 인프라(태스크 큐 + cross-session 이벤트 전파) 전체 제거
+- 삭제: `plugins/harness/hooks/manage_uh_tasks.py`, `plugins/harness/hooks/sync_uh_tasks.py`, `plugins/harness/hooks/record_uh_event.py`, `plugins/harness/hooks/inject_uh_on_prompt.py`, `plugins/harness/hooks/report_uh_on_stop.py`, `plugins/harness/hooks/uh_utils.py`, `plugins/harness/skills/queue/SKILL.md`
+- `plugins/harness/hooks/hooks.json` — UserPromptSubmit에서 `inject_uh_on_prompt`, PostToolUse의 `record_uh_event`, Stop 훅 항목 전체 제거 (잔존: `check_updates`, `block_dangerous`, `protect_sensitive`)
+- `plugins/harness/skills/harness/SKILL.md` — Step 1.75 태스크 큐 확인 블록, Step 6.5 ultraharness 세션 등록 블록, Step 11-C 세션 completed 마킹 블록 제거
+- `README.md` — Safety hooks 목록의 `record_uh_event.py` 항목을 `check_updates.py`로 교체, Audit log 섹션 삭제
+
 ## 0.17.1
 
 - fix(harness): ultraharness 훅이 `~/.claude/ultraharness` 디렉터리 부재 시 출력 없이 종료하던 silent skip 동작 수정

@@ -217,45 +217,6 @@ When learnings are available (see Step 1), append the relevant advice section fo
 <역할별 필터링된 advice 내용>
 ```
 
-## Step 1.75: 태스크 큐 확인
-
-세션 시작 직후 대기 중인 태스크를 확인하여 사용자가 입력한 문제보다 더 급한 태스크가 있는지 검사한다.
-
-```bash
-_UH_TASKS_PY="$(python3 -c "
-import os, glob
-p = os.path.expandvars(os.path.expanduser('${CLAUDE_PLUGIN_ROOT:-~/.claude/plugins}'))
-candidates = glob.glob(os.path.join(p, '**', 'manage_uh_tasks.py'), recursive=True)
-if not candidates:
-    p2 = os.path.expanduser('~/.claude/plugins')
-    candidates = glob.glob(os.path.join(p2, '**', 'manage_uh_tasks.py'), recursive=True)
-print(candidates[0] if candidates else '')
-" 2>/dev/null)"
-
-if [ -n "$_UH_TASKS_PY" ]; then
-  _TOP=$(python3 "$_UH_TASKS_PY" top 2>/dev/null)
-else
-  _TOP=""
-fi
-```
-
-`_UH_TASKS_PY`가 비어 있거나 탐색 실패 시 이 단계 전체를 silent skip하고 Step 1.5로 진행한다.
-
-조건 분기:
-
-1. **`_TOP`가 비어 있음**: 큐 없음 — 출력 없이 Step 1.5 진행
-2. **사용자 입력이 비어 있고 `_TOP` 있음**: 큐에서 최우선 태스크를 문제 설명으로 사용하도록 제안:
-   ```
-   대기 태스크 발견: [<priority>] <title>
-   이 태스크를 지금 처리하시겠습니까? (y/n, 또는 직접 문제를 입력하세요)
-   ```
-   `y` 응답 시 해당 태스크의 `title`(과 `description`이 있으면 함께)을 문제 설명으로 사용하여 Step 1.5로 진행.
-3. **사용자 입력 있고 `_TOP` 있고 priority가 `P0`**: 한 줄 알림만 출력 후 즉시 Step 1.5 진행:
-   ```
-   참고: 큐에 P0 태스크가 있습니다 — [P0] <title> (/harness:queue list 로 확인)
-   ```
-4. **사용자 입력 있고 `_TOP` 없거나 P1/P2**: 출력 없음 — 즉시 Step 1.5 진행
-
 ## Step 1.5: 난이도 추정 및 파이프라인 모드 결정
 
 사용자의 문제 설명을 분석하여 난이도를 1차 추정한다. 추정 기준:
@@ -556,45 +517,6 @@ case "$BASE_BRANCH" in
 esac
 
 git -C "$PROJECT_DIR" worktree add -b "$BRANCH" "$WORKTREE_DIR" "$BASE_BRANCH"
-
-# ultraharness 세션 등록 (~/.claude/ultraharness/ 디렉토리가 있을 때만 실행)
-python3 - << PYEOF
-import json, os, fcntl
-from datetime import datetime, timezone
-
-uh_dir = os.path.expanduser("~/.claude/ultraharness")
-if os.path.isdir(uh_dir):
-    registry_path = os.path.join(uh_dir, "registry.json")
-    os.makedirs(uh_dir, exist_ok=True)
-    try:
-        with open(registry_path, "a+", encoding="utf-8") as f:
-            fcntl.flock(f, fcntl.LOCK_EX)
-            f.seek(0)
-            content = f.read().strip()
-            try:
-                registry = json.loads(content) if content else {"sessions": []}
-            except Exception:
-                registry = {"sessions": []}
-            session_id = os.environ.get("SESSION_ID", "")
-            project_dir = os.environ.get("PROJECT_DIR", "")
-            worktree_dir = os.environ.get("WORKTREE_DIR", "")
-            registry["sessions"] = [s for s in registry.get("sessions", []) if s.get("session_id") != session_id]
-            registry["sessions"].append({
-                "session_id": session_id,
-                "project_dir": project_dir,
-                "worktree_dir": worktree_dir,
-                "role": os.environ.get("ULTRAHARNESS_ROLE", "default"),
-                "registered_at": datetime.now(timezone.utc).isoformat(),
-                "status": "running",
-            })
-            f.seek(0)
-            f.truncate()
-            json.dump(registry, f, ensure_ascii=False, indent=2)
-            fcntl.flock(f, fcntl.LOCK_UN)
-        print(f"[ultraharness] 세션 {session_id} 등록 완료")
-    except Exception as e:
-        print(f"[ultraharness] 세션 등록 실패 (무시): {e}")
-PYEOF
 
 # session.env에 영속 저장 (Step 11에서 재로드)
 # 값을 single-quote로 감싸 공백 포함 경로도 안전하게 source 가능하도록 한다
@@ -933,37 +855,6 @@ gh pr create --base "$BASE_BRANCH" --head "harness/$SESSION_ID" --title "$PR_TIT
 **gh 미설치 시:** 브랜치명, 제목, 본문 후보를 출력하여 수동 PR 생성 안내.
 
 ### 11-C. 정리 안내
-
-PR 생성 성공 후 ultraharness 세션을 completed로 마킹한다:
-```bash
-python3 - << PYEOF
-import json, os, fcntl
-from datetime import datetime, timezone
-
-uh_dir = os.path.expanduser("~/.claude/ultraharness")
-if os.path.isdir(uh_dir):
-    registry_path = os.path.join(uh_dir, "registry.json")
-    if os.path.exists(registry_path):
-        try:
-            with open(registry_path, "r+", encoding="utf-8") as f:
-                fcntl.flock(f, fcntl.LOCK_EX)
-                content = f.read().strip()
-                try:
-                    registry = json.loads(content) if content else {"sessions": []}
-                except Exception:
-                    registry = {"sessions": []}
-                session_id = os.environ.get("SESSION_ID", "")
-                for s in registry.get("sessions", []):
-                    if s.get("session_id") == session_id:
-                        s["status"] = "completed"
-                f.seek(0)
-                f.truncate()
-                json.dump(registry, f, ensure_ascii=False, indent=2)
-                fcntl.flock(f, fcntl.LOCK_UN)
-        except Exception as e:
-            print(f"[ultraharness] 세션 마킹 실패 (무시): {e}")
-PYEOF
-```
 
 PR 생성 성공 후:
 ```
