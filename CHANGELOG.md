@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.23.0
+
+- feat(harness): `/harness:investigate`, `/harness:review` 단독 스킬과 `reviewer-standalone` 에이전트 제거 — 풀 파이프라인 `/harness`만 남긴다
+- 삭제:
+  - `plugins/harness/skills/investigate/SKILL.md` (및 폴더)
+  - `plugins/harness/skills/review/SKILL.md` (및 폴더)
+  - `plugins/harness/agents/reviewer-standalone.md` — review 스킬에서만 호출되던 dead code
+- 영향: `/harness:investigate <문제>` / `/harness:review` 호출은 더 이상 동작하지 않는다. investigator/reviewer 에이전트는 `/harness` 파이프라인 안에서 그대로 호출된다
+
 ## 0.22.0
 
 - feat(harness): 파이프라인 4개 지점에 `PushNotification` 호출 추가 — 자리를 비웠을 가능성이 있는 순간만 보수적으로 알림
