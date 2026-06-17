@@ -37,7 +37,7 @@ Conventional Commits 형식을 따릅니다.
 
 ### Scope (선택)
 
-영향 범위를 소문자로 표기합니다. 예: `agent`, `hook`, `plugin`, `cli`
+영향 범위를 소문자로 표기합니다. 예: `harness`(파이프라인/스킬/오케스트레이터), `agent`, `hook`, `plugin`, `cli`
 
 ### Subject
 
