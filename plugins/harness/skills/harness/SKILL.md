@@ -1,7 +1,7 @@
 ---
 name: harness
 description: 자연어 문제 설명을 받아 investigator→architect→challenger→implementer→reviewer 순으로 서브에이전트를 호출하는 오케스트레이터. 사용자가 "/harness <문제>" 형태로 엔지니어링 워크플로우를 시작할 때 사용.
-version: 0.4.0
+version: 0.5.0
 ---
 
 You are the harness orchestrator. You coordinate the full engineering workflow: investigate → architect → challenge → implement → review.
@@ -479,9 +479,25 @@ When the user replies with a choice:
 
 Use Write or Bash to create the file. 작성 후 `chosen-plan.md`에는 반드시 `## 제거 대상` 섹션이 존재해야 한다 (값이 "없음"이라도). 없으면 Step 6.3 게이트가 fail-safe로 동작한다.
 
-## Step 6.3: 제거 대상 승인 게이트
+## Step 6.3: 제거 대상 승인 게이트 (또는 plan mode 공식 승인)
 
 `chosen-plan.md`에 명시된 "제거 대상"이 있다면 — 사용자가 원래 문제 설명에서 제거를 요청했더라도 — 여기서 명시적 승인을 다시 받아야 한다. 사유: 사용자 요청 시점과 architect가 구체화한 시점 사이에 의도·스코프가 어긋날 수 있고, 제거는 되돌리기 어렵다.
+
+### Step 6.3-pre: plan mode 감지
+
+세션이 plan mode 상태인지 확인한다. plan mode 시스템 메시지(`<plan-mode>...</plan-mode>` 류 태그 또는 "Write your plan to <path>" 류 안내)가 컨텍스트에 있으면 plan mode이며, 그 메시지에 포함된 plan 파일 경로를 `$PLAN_FILE_PATH`로 캡처한다. 없으면 `PLAN_MODE=0`.
+
+**plan mode인 경우 (`PLAN_MODE=1`)**: 아래 REMOVAL 정규화는 그대로 수행해 사용자에게 보여줄 안내문에 활용하되, AskUserQuestion 게이트는 생략하고 `ExitPlanMode`로 일원화한다.
+
+1. `chosen-plan.md` 내용을 plan mode 지정 경로로 복사한다:
+   ```bash
+   cp "$SESSION_DIR/chosen-plan.md" "$PLAN_FILE_PATH"
+   ```
+2. `REMOVAL_PRESENT=1` 이면 plan 파일 상단(또는 별도 안내 메시지)에 ⚠️ 제거 항목 요약을 명시한다. plan mode UI에서 사용자가 제거 사항을 확인할 수 있어야 한다.
+3. `ExitPlanMode`를 호출한다(인자 없음). 사용자가 plan mode UI에서 승인하면 자동으로 plan mode가 종료되며 Step 6.5로 진행. 거부 시 사용자 응답을 받아 chosen-plan.md를 수정(Step 6 재실행)하거나 세션을 중단한다.
+4. ExitPlanMode 경로로 통과한 경우 `TaskUpdate(taskId=$CHOICE_TASK_ID, status="completed")` 호출 후 Step 6.5로 진행한다.
+
+**plan mode가 아닌 경우 (`PLAN_MODE=0`)**: 아래 기존 흐름(REMOVAL 정규화 + AskUserQuestion 또는 silent pass)을 그대로 사용한다.
 
 ```bash
 # 1) 섹션 존재 여부

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.21.0
+
+- feat(harness): Step 6.3에 plan mode 감지 경로 추가 — 세션이 plan mode일 때 AskUserQuestion 게이트 대신 `ExitPlanMode`로 공식 승인
+- `plugins/harness/skills/harness/SKILL.md`:
+  - Step 6.3 헤더에 "또는 plan mode 공식 승인" 부제 추가
+  - Step 6.3-pre 절 신설 — plan mode 시스템 메시지에서 plan 파일 경로(`$PLAN_FILE_PATH`)를 캡처. plan mode이면 `chosen-plan.md`를 그 경로로 복사한 뒤 `ExitPlanMode` 호출로 일원화 (`REMOVAL_PRESENT=1` 인 경우 plan 파일 상단에 ⚠️ 제거 항목 요약 명시)
+  - ExitPlanMode 경로 통과 시 `CHOICE_TASK_ID`를 `completed`로 갱신
+  - plan mode가 아닐 때는 기존 AskUserQuestion 흐름 그대로 유지 — 마찰 없는 fallback
+  - 스킬 frontmatter `version`: `0.4.0` → `0.5.0`
+
 ## 0.20.0
 
 - feat(harness): 파이프라인 단계를 `TaskCreate`/`TaskUpdate`로 가시화 — 사용자가 진행 상황을 실시간으로 확인
