@@ -49,6 +49,7 @@ At session end the orchestrator reports total token usage and suggests `/compact
 - **Structured choices** — direction selection (Step 5), removal approval (Step 6.3), PR creation (Step 11-B) and difficulty confirmation (Step 1.5) use `AskUserQuestion` instead of free-text input. `Other` always falls back to free-form.
 - **Plan mode handoff** — if the session is already in plan mode when `/harness` runs, Step 6.3 calls `ExitPlanMode` to formalize approval of `chosen-plan.md`. Outside plan mode, the usual `AskUserQuestion` gate runs.
 - **Walk-away notifications** — `PushNotification` fires before Step 5 (direction wait), Step 11-B (PR review wait), and at session-terminal events (PR created, PR cancelled, pipeline aborted before PR).
+- **Plain-language summary** — Step 12 always outputs a "쉽게 말하면" block at the end of every session (regardless of mode or PR outcome). Three fixed bullets — *what changed*, *what to be aware of*, *cautions* — written without file paths, function names, or domain jargon, so important side effects aren't missed when you skim the output.
 
 ### codex integration
 

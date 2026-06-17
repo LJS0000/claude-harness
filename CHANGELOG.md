@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.24.0
+
+- feat(harness): 파이프라인 종료 시 "쉽게 말하면" 블록을 강제로 출력하는 Step 12 신설 — 응답을 빠르게 훑어도 중요한 변경이나 후속 조치를 놓치지 않도록 하는 안전망
+- `plugins/harness/skills/harness/SKILL.md`:
+  - Step 12 신설 — 모드(simple/medium/complex)와 종료 경로(PR 생성 / PR 취소 / Step 11 스킵)에 무관하게 항상 실행
+  - 고정 3-항목 구조: `무엇이 바뀌었나` / `알아둘 점` / `주의`. 도메인 용어·파일 경로·함수명·라인 번호 인용을 금지하고 풀어쓴 표현만 허용
+  - Step 11 결과에 따라 "주의" 블록에 자동 삽입할 한 줄 문구를 명시 (`PR 미생성`, `PR 생성됨: <url>`, `PR 취소`)
+  - 사용자 원래 요청 외의 부수 변경(의존성/설정/포맷팅)이 있으면 반드시 "알아둘 점"에 기재하도록 규칙화
+  - 스킬 frontmatter `version`: `0.6.0` → `0.7.0`
+- `README.md` — Pipeline UX 섹션에 "Plain-language summary" 항목 추가
+
 ## 0.23.0
 
 - feat(harness): `/harness:investigate`, `/harness:review` 단독 스킬과 `reviewer-standalone` 에이전트 제거 — 풀 파이프라인 `/harness`만 남긴다
