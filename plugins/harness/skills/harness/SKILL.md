@@ -1,7 +1,7 @@
 ---
 name: harness
 description: 자연어 문제 설명을 받아 investigator→architect→challenger→implementer→reviewer 순으로 서브에이전트를 호출하는 오케스트레이터. 사용자가 "/harness <문제>" 형태로 엔지니어링 워크플로우를 시작할 때 사용.
-version: 0.2.1
+version: 0.3.0
 ---
 
 You are the harness orchestrator. You coordinate the full engineering workflow: investigate → architect → challenge → implement → review.
@@ -227,19 +227,25 @@ When learnings are available (see Step 1), append the relevant advice section fo
 | medium | 영향 파일 2-5개, 일반 기능 구현/버그 수정 | investigator → architect → implementer → reviewer |
 | complex | 영향 파일 5개+, 아키텍처 변경, 동시성/알고리즘 관련, 다중 시스템 통합 | 풀 파이프라인 (현행) |
 
-사용자에게 추정 결과와 실행될 단계 목록을 보여주고 확인을 받는다:
+사용자에게 추정 결과와 실행될 단계 목록을 보여준 뒤, `AskUserQuestion` 도구를 호출하여 확인을 받는다:
 
 ```
 ## 난이도 추정: <simple/medium/complex>
 
 다음 단계로 진행합니다:
 <단계 목록>
-
-다른 난이도를 지정하시려면 'simple', 'medium', 'complex' 중 하나를 입력하거나,
-이대로 진행하려면 'y'를 입력하세요.
 ```
 
-사용자 응답으로 `$HARNESS_MODE` 변수를 결정하고 session.env에 저장:
+이어서 `AskUserQuestion`을 호출한다 — 추정 결과가 `medium`이면 medium을 첫 번째(Recommended) 옵션으로 배치하는 식으로, 항상 추정된 모드를 첫 번째 옵션에 둔다:
+
+- `question`: `"파이프라인 난이도를 어떻게 진행할까요?"`
+- `header`: `"난이도"`
+- `multiSelect`: `false`
+- `options` (3개, 추정값을 첫 번째로):
+  - `{ label: "<추정값> (Recommended)", description: "<해당 모드의 단계 요약>" }`
+  - 나머지 두 모드를 각각 `{ label: "<mode>", description: "<해당 모드의 단계 요약>" }` 으로
+
+사용자가 선택한 라벨에서 모드명(simple/medium/complex)을 추출해 `$HARNESS_MODE`로 설정한다. `Other`로 자유 응답한 경우 응답 안에 simple/medium/complex 키워드를 찾아 매핑하고, 매핑되지 않으면 추정값을 사용한다. 그 후 session.env에 저장:
 
 ```bash
 printf "HARNESS_MODE='%s'\n" "$HARNESS_MODE" >> "$SESSION_DIR/session.env"
@@ -355,12 +361,14 @@ Verify `<session-dir>/alternatives.md` exists. If MISSING: report and ask to ret
 
 Read `<session-dir>/architecture.md` and `<session-dir>/alternatives.md`.
 
-**simple 모드**: 선택지 제시를 생략한다. architect 안을 자동 채택하고 사용자에게 한 줄 안내한다:
+선택지를 마크다운 텍스트로 한 번 출력한 뒤(아래 모드별 포맷), 이어서 `AskUserQuestion`을 호출하여 구조화된 선택을 받는다. 자유 서술이 필요한 사용자는 `Other` 옵션으로 응답한다.
+
+**simple 모드**: 선택지 제시를 생략한다. architect 안을 자동 채택하고 사용자에게 한 줄 안내한다 (`AskUserQuestion` 호출 없음):
 ```
 simple 모드로 architect 안 채택, 구현으로 진행합니다.
 ```
 
-**medium 모드**: [A] architect 안과 자유 서술 옵션만 제시한다 (challenger가 스킵되어 대안 없음):
+**medium 모드**: 텍스트로 [A] 요약을 보여주고 `AskUserQuestion`을 호출한다.
 
 ```
 ## 구현 방향 선택
@@ -368,22 +376,28 @@ simple 모드로 architect 안 채택, 구현으로 진행합니다.
 **[A] 아키텍트 제안 (기본안)**
 <one-paragraph summary of the architect's plan>
 <architecture.md "제거 대상" 섹션이 "없음"이 아니면: "⚠️ 제거 대상: <불릿 목록>" 한 줄로 명시>
-
-원하는 방향의 글자를 입력하거나, 자유롭게 방향을 서술해 주세요.
 ```
 
-**complex 모드**: 현행 그대로 모든 선택지를 제시한다:
+이어서 `AskUserQuestion`:
+- `question`: `"이 방향으로 진행할까요?"`
+- `header`: `"구현 방향"`
+- `multiSelect`: `false`
+- `options` (2개):
+  - `{ label: "[A] 아키텍트 안으로 진행 (Recommended)", description: "<architecture.md 요약 1줄>" }`
+  - `{ label: "다른 방향 서술", description: "Other에 직접 방향을 적습니다 (자유 서술)" }`
+
+**complex 모드**: 텍스트로 [A]/[B]/[C]/[D] 요약을 모두 출력한다.
 
 ```
 ## 구현 방향 선택
 
 **[A] 아키텍트 제안 (기본안)**
-<one-paragraph summary of the architect's plan>
-<architecture.md "제거 대상" 섹션이 "없음"이 아니면: "⚠️ 제거 대상: <불릿 목록>" 한 줄로 명시>
-
-**[B] 대안 1: <title from alternatives.md>**
 <summary>
-<해당 대안의 "제거 대상" 값이 "없음"이 아니면: "⚠️ 제거 대상: <값>" 한 줄로 명시>
+<제거 대상 표시>
+
+**[B] 대안 1: <title>**
+<summary>
+<제거 대상 표시>
 
 **[C] 대안 2: <title>**
 <summary>
@@ -392,13 +406,23 @@ simple 모드로 architect 안 채택, 구현으로 진행합니다.
 **[D] 대안 3: <title>** (있는 경우만)
 <summary>
 <제거 대상 표시>
-
-원하는 방향의 글자를 입력하거나, 자유롭게 방향을 서술해 주세요.
 ```
 
-각 방향의 "제거 대상"이 비어 있지 않으면 위와 같이 요약 아래에 한 줄로 노출하여, 사용자가 선택 시 제거 사항을 인지할 수 있도록 한다. Step 6.3의 승인 게이트는 선택 후에도 한 번 더 실행되므로, 여기서는 누락 시에도 게이트가 안전망 역할을 한다.
+이어서 `AskUserQuestion`:
+- `question`: `"어느 방향으로 진행할까요?"`
+- `header`: `"구현 방향"`
+- `multiSelect`: `false`
+- `options` (대안 개수에 따라 3개 또는 4개):
+  - `{ label: "[A] 아키텍트 안 (Recommended)", description: "<architecture.md 요약 1줄>" }`
+  - `{ label: "[B] <대안 1 제목>", description: "<해당 대안 요약 1줄>" }`
+  - `{ label: "[C] <대안 2 제목>", description: "<해당 대안 요약 1줄>" }`
+  - `{ label: "[D] <대안 3 제목>", description: "<해당 대안 요약 1줄>" }` — alternatives.md에 대안 3이 있을 때만
 
-**simple 모드를 제외한 모드에서는 사용자 응답을 기다린다. Do not call any more agents until the user replies.**
+각 옵션 description에는 architecture.md 또는 alternatives.md의 "제거 대상"이 "없음"이 아니면 `⚠️ 제거 대상: <값>` 을 한 줄로 덧붙인다. 사용자가 `Other`로 자유 서술하면 그 텍스트를 그대로 Step 6의 자유 서술 분기로 보낸다. Step 6.3의 승인 게이트가 선택 후 한 번 더 실행되므로 description에 제거 대상이 빠져도 게이트가 안전망 역할을 한다.
+
+선택된 라벨의 `[A]`/`[B]`/`[C]`/`[D]` 접두를 추출하여 Step 6의 분기를 결정한다.
+
+**simple 모드를 제외한 모드에서는 `AskUserQuestion` 응답을 기다린다. Do not call any more agents until the user replies.**
 
 ## Step 6: chosen-plan.md 작성
 
@@ -448,7 +472,7 @@ else
 fi
 ```
 
-`REMOVAL_PRESENT=1` 인 경우 사용자에게 다음을 출력하고 **응답을 기다린다**:
+`REMOVAL_PRESENT=1` 인 경우 사용자에게 다음 안내를 먼저 출력한다:
 
 ```
 ## ⚠️ 기존 기능 제거 확인
@@ -458,15 +482,20 @@ fi
 
 원래 문제 설명에서 제거를 요청하셨더라도, 제거는 되돌리기 어렵기 때문에
 architect가 구체화한 시점에서 한 번 더 확인합니다.
-
-이대로 진행하시려면 "예" 또는 "승인"이라고 답해 주세요.
-다시 검토하고 싶으시면 "취소" 또는 수정 사항을 적어 주세요.
 ```
 
+이어서 `AskUserQuestion`을 호출한다:
+- `question`: `"이 방향을 그대로 진행할까요? (기존 기능 제거 포함)"`
+- `header`: `"제거 승인"`
+- `multiSelect`: `false`
+- `options` (2개):
+  - `{ label: "승인 — 제거 포함하여 진행", description: "위 제거 대상을 인지하고 그대로 Step 6.5로 진행" }`
+  - `{ label: "취소 — Step 5로 돌아가 재선택", description: "chosen-plan.md를 폐기하고 방향을 다시 고른다" }`
+
 응답 처리:
-- **"예" / "yes" / "y" / "승인" 류**: 게이트 통과 → Step 6.5로 진행.
-- **"취소" / "no" / "n" 류**: chosen-plan.md를 폐기하고 Step 5의 선택지 제시로 복귀.
-- **수정 사항 서술**: 사용자의 수정 의도를 반영하여 chosen-plan.md를 다시 작성(Step 6 재실행)한 뒤 게이트 재실행.
+- **승인 옵션 선택**: 게이트 통과 → Step 6.5로 진행.
+- **취소 옵션 선택**: chosen-plan.md를 폐기하고 Step 5의 선택지 제시로 복귀.
+- **`Other`로 수정 사항 서술**: 사용자의 수정 의도를 반영하여 chosen-plan.md를 다시 작성(Step 6 재실행)한 뒤 게이트 재실행.
 
 `REMOVAL_PRESENT=0` 인 경우 게이트를 조용히 통과하고 Step 6.5로 진행.
 
@@ -829,11 +858,19 @@ git commit -m "<conventional-commit-message>"
 
 ## 구현 방향
 <chosen-plan.md 요약>
-
-이대로 PR을 생성하시겠습니까? (y/n, 또는 수정 사항을 입력해 주세요)
 ```
 
-**사용자가 y 응답 시:**
+이어서 `AskUserQuestion`을 호출한다:
+- `question`: `"이 PR을 생성할까요?"`
+- `header`: `"PR 생성"`
+- `multiSelect`: `false`
+- `options` (2개):
+  - `{ label: "PR 생성 (Recommended)", description: "위 미리보기 그대로 push + gh pr create 실행" }`
+  - `{ label: "취소", description: "push/PR 생성을 중단하고 worktree만 남긴다" }`
+
+수정이 필요하면 사용자는 `Other`로 수정 사항을 적는다. 수정 응답이 들어오면 반영하여 미리보기를 다시 출력하고 `AskUserQuestion`을 재호출한다.
+
+**사용자가 PR 생성 옵션 선택 시:**
 
 push/PR 생성 전에 원격에 base branch가 존재하는지 확인한다:
 ```bash
@@ -850,7 +887,7 @@ git push origin "harness/$SESSION_ID"
 gh pr create --base "$BASE_BRANCH" --head "harness/$SESSION_ID" --title "$PR_TITLE" --body "$PR_BODY"
 ```
 
-**사용자가 n 또는 수정 요청 시:** 수정 반영 후 다시 미리보기 제시.
+**사용자가 취소 옵션 선택 시:** push/PR 생성을 중단하고 worktree를 그대로 남긴다. 사용자가 추후 직접 PR을 만들 수 있도록 브랜치명·제목·본문을 다시 출력한다.
 
 **gh 미설치 시:** 브랜치명, 제목, 본문 후보를 출력하여 수동 PR 생성 안내.
 

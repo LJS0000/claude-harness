@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.19.0
+
+- feat(harness): orchestrator 사용자 응답 지점 4곳을 `AskUserQuestion` 도구 호출로 전환
+- `plugins/harness/skills/harness/SKILL.md`:
+  - Step 1.5 난이도 확인 — 자유 텍스트(`y` 또는 `simple/medium/complex`) 입력을 `AskUserQuestion` 3-옵션 선택으로 교체. 추정값을 항상 첫 번째(Recommended)에 배치
+  - Step 5 구현 방향 선택 — complex 모드의 [A]/[B]/[C]/[D] 자유 텍스트 선택을 `AskUserQuestion`로 구조화(대안 개수에 따라 3-4 옵션). medium 모드는 [A] 채택 / 다른 방향 서술 2-옵션. simple 모드는 기존대로 자동 채택
+  - Step 6.3 제거 대상 승인 게이트 — `예`/`취소`/수정사항 자유 텍스트를 `AskUserQuestion` 2-옵션(승인 / 취소·재선택)으로 교체. 수정은 `Other`로 처리
+  - Step 11-B PR 생성 확인 — `y`/`n`/수정사항 자유 텍스트를 `AskUserQuestion` 2-옵션(PR 생성 / 취소)으로 교체. 수정은 `Other`로 처리
+  - 스킬 frontmatter `version`: `0.2.1` → `0.3.0`
+
 ## 0.18.0
 
 - feat(harness): ultraharness 인프라(태스크 큐 + cross-session 이벤트 전파) 전체 제거
