@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.22.0
+
+- feat(harness): 파이프라인 4개 지점에 `PushNotification` 호출 추가 — 자리를 비웠을 가능성이 있는 순간만 보수적으로 알림
+- `plugins/harness/skills/harness/SKILL.md`:
+  - Step 5 (medium/complex 방향 선택): `AskUserQuestion` 호출 직전에 `"하네스: 방향 선택 대기 — <원문 요약>"` 알림. investigator/architect/(challenger)가 수 분 돌아갔으므로 walk-away 가능성 높음
+  - Step 11-B (PR 검토): `AskUserQuestion` 호출 직전에 `"하네스: PR 검토 대기 — <pr-title>"` 알림. implementer/reviewer가 또 돌아간 뒤
+  - Step 11-C (PR 성공): `"하네스 완료: PR <url>"` 알림
+  - Step 11-B 취소 경로: `"하네스 종료: PR 취소 — worktree 유지"` 알림
+  - Step 11 스킵 (review FAIL 또는 worktree 없음): `"하네스 종료: review <결과>, PR 미생성"` 알림. Step 11이 실제 실행되는 경로에서는 11-C 알림이 대신 발사
+  - Step 1.5 모드 확인 / Step 6.3 제거 승인은 의도적으로 알림 없음 (사용자가 적극 참여 중인 시점)
+  - 스킬 frontmatter `version`: `0.5.0` → `0.6.0`
+
 ## 0.21.0
 
 - feat(harness): Step 6.3에 plan mode 감지 경로 추가 — 세션이 plan mode일 때 AskUserQuestion 게이트 대신 `ExitPlanMode`로 공식 승인

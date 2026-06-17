@@ -1,7 +1,7 @@
 ---
 name: harness
 description: 자연어 문제 설명을 받아 investigator→architect→challenger→implementer→reviewer 순으로 서브에이전트를 호출하는 오케스트레이터. 사용자가 "/harness <문제>" 형태로 엔지니어링 워크플로우를 시작할 때 사용.
-version: 0.5.0
+version: 0.6.0
 ---
 
 You are the harness orchestrator. You coordinate the full engineering workflow: investigate → architect → challenge → implement → review.
@@ -397,6 +397,12 @@ Verify `<session-dir>/alternatives.md` exists. 파일이 존재하면 `TaskUpdat
 Read `<session-dir>/architecture.md` and `<session-dir>/alternatives.md`.
 
 medium/complex 모드일 경우 `TaskUpdate(taskId=$CHOICE_TASK_ID, status="in_progress")` 호출. simple 모드는 choice 태스크 자체가 없으므로 생략.
+
+investigator + architect (+ 가능하다면 challenger) 가 실행되며 수 분이 걸렸으므로 사용자가 자리를 비웠을 가능성이 높다. medium/complex 모드에서 `AskUserQuestion` 호출 직전에 한 번 알림을 보낸다:
+
+```
+PushNotification(message="하네스: 방향 선택 대기 — <원문 문제 1줄 요약>", status="proactive")
+```
 
 선택지를 마크다운 텍스트로 한 번 출력한 뒤(아래 모드별 포맷), 이어서 `AskUserQuestion`을 호출하여 구조화된 선택을 받는다. 자유 서술이 필요한 사용자는 `Other` 옵션으로 응답한다.
 
@@ -894,6 +900,12 @@ retrospective는 non-blocking이므로 실패 시에도 태스크를 `completed`
 
 리뷰 결과가 PASS 또는 SKIPPED이고 worktree가 생성된 경우에만 실행.
 
+조건을 충족하지 못해 Step 11을 스킵할 경우(리뷰 FAIL 또는 worktree 없음) 세션이 여기서 종결되므로, 종료 알림을 한 번 보낸다 — Step 11이 실행되는 경로에서는 11-C 알림이 대신 발사되므로 여기서 보내지 않는다:
+
+```
+PushNotification(message="하네스 종료: review <PASS|FAIL|SKIPPED>, PR 미생성", status="proactive")
+```
+
 Step 11 진입 시 `TaskUpdate(taskId=$PR_TASK_ID, status="in_progress")` 호출 후 session.env를 로드하여 BASE_BRANCH 등 Step 6.5에서 캡처한 값을 복원한다:
 ```bash
 [ -f "$SESSION_DIR/session.env" ] && . "$SESSION_DIR/session.env"
@@ -927,6 +939,12 @@ git commit -m "<conventional-commit-message>"
 <chosen-plan.md 요약>
 ```
 
+implementer + reviewer 가 실행되며 또 시간이 흘렀으므로 사용자가 자리를 비웠을 가능성이 높다. `AskUserQuestion` 호출 직전에 한 번 알림을 보낸다:
+
+```
+PushNotification(message="하네스: PR 검토 대기 — <pr-title>", status="proactive")
+```
+
 이어서 `AskUserQuestion`을 호출한다:
 - `question`: `"이 PR을 생성할까요?"`
 - `header`: `"PR 생성"`
@@ -952,6 +970,18 @@ fi
 ```bash
 git push origin "harness/$SESSION_ID"
 gh pr create --base "$BASE_BRANCH" --head "harness/$SESSION_ID" --title "$PR_TITLE" --body "$PR_BODY"
+```
+
+PR 생성이 성공하면 — URL을 받았으면 다음 알림으로 세션 완료를 알린다:
+
+```
+PushNotification(message="하네스 완료: PR <pr-url>", status="proactive")
+```
+
+사용자가 취소를 선택해 push/PR을 안 한 경우:
+
+```
+PushNotification(message="하네스 종료: PR 취소 — worktree 유지", status="proactive")
 ```
 
 PR이 생성되거나 사용자가 취소를 선택해 Step 11이 종결되면 `TaskUpdate(taskId=$PR_TASK_ID, status="completed")` 호출.
