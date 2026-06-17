@@ -1,7 +1,7 @@
 ---
 name: harness
 description: 자연어 문제 설명을 받아 investigator→architect→challenger→implementer→reviewer 순으로 서브에이전트를 호출하는 오케스트레이터. 사용자가 "/harness <문제>" 형태로 엔지니어링 워크플로우를 시작할 때 사용.
-version: 0.3.0
+version: 0.4.0
 ---
 
 You are the harness orchestrator. You coordinate the full engineering workflow: investigate → architect → challenge → implement → review.
@@ -251,6 +251,33 @@ When learnings are available (see Step 1), append the relevant advice section fo
 printf "HARNESS_MODE='%s'\n" "$HARNESS_MODE" >> "$SESSION_DIR/session.env"
 ```
 
+## Step 1.6: 파이프라인 태스크 생성
+
+`$HARNESS_MODE`에 따라 실행될 단계를 `TaskCreate`로 미리 등록해 사용자가 진행 상황을 실시간으로 본다. 모드별 생성 대상:
+
+| HARNESS_MODE | 생성할 태스크 (실행 순서) |
+|--------------|--------------------------|
+| simple | architect, implementer |
+| medium | investigator, architect, choice, implementer, reviewer, pr |
+| complex | investigator, architect, challenger, choice, implementer, reviewer, retrospective, pr |
+
+각 태스크의 호출 인자:
+
+| role | subject | activeForm | description |
+|------|---------|------------|-------------|
+| investigator | `investigator: 문제 영역 파악` | `investigator 실행 중` | `문제 설명을 받아 investigation.md 작성` |
+| architect | `architect: 계획 수립` | `architect 실행 중` | `architecture.md 작성` |
+| challenger | `challenger: 대안 분석` | `challenger 실행 중` | `alternatives.md 작성 (complex 전용)` |
+| choice | `사용자 방향 선택` | `사용자 응답 대기` | `AskUserQuestion으로 구현 방향 결정` |
+| implementer | `implementer: 구현` | `implementer 실행 중` | `chosen-plan.md를 worktree에 적용` |
+| reviewer | `reviewer: 검수` | `reviewer 실행 중` | `plan 대비 구현 검수` |
+| retrospective | `retrospective: 교훈 누적` | `retrospective 실행 중` | `learnings.json 작성 (complex 전용)` |
+| pr | `PR 생성` | `PR 생성 중` | `자동 커밋 + gh pr create` |
+
+각 `TaskCreate` 반환값에서 task id를 받아 변수 `<ROLE>_TASK_ID` (예: `INVESTIGATOR_TASK_ID`, `ARCHITECT_TASK_ID`, ..., `PR_TASK_ID`) 로 보관한다. 이후 step에서 진입 시 `TaskUpdate(taskId, status="in_progress")`, 완료(파일 검증 통과 또는 사용자 응답 수신) 시 `TaskUpdate(taskId, status="completed")` 를 호출한다.
+
+스킵되는 단계(예: simple 모드의 investigator)는 애초에 생성하지 않으므로 추가 처리가 없다. 실패로 중단되는 경우 해당 태스크는 `in_progress` 상태로 남겨 두어 사용자가 어디서 멈췄는지 파악하게 한다.
+
 ## Step 2: investigator 호출
 
 ```bash
@@ -285,6 +312,8 @@ Before calling the agent (non-simple), run:
 printf '\033[1;34m[harness]\033[0m-\033[1;32m[investigator 실행 중...]\033[0m\n'
 ```
 
+이어서 `TaskUpdate(taskId=$INVESTIGATOR_TASK_ID, status="in_progress")` 호출.
+
 Build the investigator context string. If `$ADVICE_INVESTIGATOR` is non-empty, append:
 ```
 \n\n## 이전 세션 교훈 (이 에이전트 대상)\n<$ADVICE_INVESTIGATOR>
@@ -297,7 +326,9 @@ After the call, verify `<session-dir>/investigation.md` exists:
 test -f "<session-dir>/investigation.md" && echo "OK" || echo "MISSING"
 ```
 
-If MISSING: report the error and ask the user whether to retry or abort. Do not continue.
+파일이 존재하면 `TaskUpdate(taskId=$INVESTIGATOR_TASK_ID, status="completed")` 호출.
+
+If MISSING: report the error and ask the user whether to retry or abort. Do not continue. 태스크는 `in_progress` 상태로 둔다.
 
 ## Step 3: architect 호출
 
@@ -307,6 +338,8 @@ Before calling the agent, run:
 ```bash
 printf '\033[1;34m[harness]\033[0m-\033[1;32m[architect 실행 중...]\033[0m\n'
 ```
+
+이어서 `TaskUpdate(taskId=$ARCHITECT_TASK_ID, status="in_progress")` 호출.
 
 Build the architect context string. If `$ADVICE_ARCHITECT` is non-empty, append:
 ```
@@ -320,7 +353,7 @@ simple 모드일 때 architect context string에 다음 지시를 추가한다:
 
 Call `Agent("architect", context_string)`.
 
-Verify `<session-dir>/architecture.md` exists. If MISSING: report and ask to retry or abort.
+Verify `<session-dir>/architecture.md` exists. 파일이 존재하면 `TaskUpdate(taskId=$ARCHITECT_TASK_ID, status="completed")` 호출. If MISSING: report and ask to retry or abort (태스크는 `in_progress` 유지).
 
 ## Step 4: challenger 호출
 
@@ -351,15 +384,19 @@ Before calling the agent (complex only), run:
 printf '\033[1;34m[harness]\033[0m-\033[1;32m[challenger 실행 중...]\033[0m\n'
 ```
 
+이어서 `TaskUpdate(taskId=$CHALLENGER_TASK_ID, status="in_progress")` 호출.
+
 The challenger does not receive targeted learnings — call with the standard context string.
 
 Call `Agent("challenger", context_string)`.
 
-Verify `<session-dir>/alternatives.md` exists. If MISSING: report and ask to retry or abort.
+Verify `<session-dir>/alternatives.md` exists. 파일이 존재하면 `TaskUpdate(taskId=$CHALLENGER_TASK_ID, status="completed")` 호출. If MISSING: report and ask to retry or abort (태스크는 `in_progress` 유지).
 
 ## Step 5: 사용자에게 선택지 제시
 
 Read `<session-dir>/architecture.md` and `<session-dir>/alternatives.md`.
+
+medium/complex 모드일 경우 `TaskUpdate(taskId=$CHOICE_TASK_ID, status="in_progress")` 호출. simple 모드는 choice 태스크 자체가 없으므로 생략.
 
 선택지를 마크다운 텍스트로 한 번 출력한 뒤(아래 모드별 포맷), 이어서 `AskUserQuestion`을 호출하여 구조화된 선택을 받는다. 자유 서술이 필요한 사용자는 `Other` 옵션으로 응답한다.
 
@@ -499,6 +536,8 @@ architect가 구체화한 시점에서 한 번 더 확인합니다.
 
 `REMOVAL_PRESENT=0` 인 경우 게이트를 조용히 통과하고 Step 6.5로 진행.
 
+게이트를 통과하는 모든 경로(승인 또는 `REMOVAL_PRESENT=0`)에서 `TaskUpdate(taskId=$CHOICE_TASK_ID, status="completed")` 를 호출한다. "취소 — 재선택" 경로에서는 태스크 상태를 그대로 두고 Step 5로 복귀한다(in_progress 유지).
+
 `SECTION_MISSING=1` 인 경우 (architect/challenger 출력 누락 또는 free-form에서 정규화 실패): 사용자에게 다음을 보고한 뒤 Step 6로 복귀해 섹션을 채운다. 게이트를 우회하지 않는다.
 
 ```
@@ -603,6 +642,8 @@ Before calling the agent, run:
 printf '\033[1;34m[harness]\033[0m-\033[1;32m[implementer 실행 중...]\033[0m\n'
 ```
 
+이어서 `TaskUpdate(taskId=$IMPLEMENTER_TASK_ID, status="in_progress")` 호출.
+
 Pass the following context to the implementer (note `[PROJECT DIR:]` is the worktree path, `[ORIGIN DIR:]` is the original project path):
 ```
 [HARNESS SESSION: <session-id>]
@@ -619,6 +660,8 @@ Build the implementer context string starting from `context_string_with_worktree
 ```
 
 Call `Agent("implementer", context_string_with_worktree + "\n선택된 방향: <user's choice>", model="<chosen-model-id>")`.
+
+implementer 반환 후 보고서가 "구현 완료 보고"로 시작하고 worktree 변경이 있으면 `TaskUpdate(taskId=$IMPLEMENTER_TASK_ID, status="completed")` 호출. "구현 실패 보고"로 시작하거나 scope 위반/중단된 경우 태스크는 `in_progress` 유지하고 사용자에게 결과 보고 후 절차 결정.
 
 ## Step 8: plan을 ~/.claude/plans/ 에 복사
 
@@ -658,6 +701,8 @@ Before calling the agent (non-simple), run:
 printf '\033[1;34m[harness]\033[0m-\033[1;32m[reviewer 실행 중...]\033[0m\n'
 ```
 
+이어서 `TaskUpdate(taskId=$REVIEWER_TASK_ID, status="in_progress")` 호출.
+
 Pass the same worktree-based context to the reviewer (same as Step 7):
 ```
 [HARNESS SESSION: <session-id>]
@@ -674,6 +719,8 @@ Build the reviewer context string from `context_string_with_worktree`. If `$ADVI
 ```
 
 Call `Agent("reviewer", context_string_with_worktree)`.
+
+reviewer 반환 후 (PASS 또는 FAIL과 무관하게 검수 자체가 완료됐다면) `TaskUpdate(taskId=$REVIEWER_TASK_ID, status="completed")` 호출. 검수 자체가 실행되지 못한 경우(중단)에만 `in_progress` 유지.
 
 The reviewer will find the plan at `~/.claude/plans/<session-id>.md` automatically.
 
@@ -779,6 +826,8 @@ printf '\033[1;34m[harness]\033[0m-\033[1;32m[retrospective 실행 중...]\033[0
 mkdir -p "$HOME/.claude/harness-learnings"
 ```
 
+이어서 `TaskUpdate(taskId=$RETROSPECTIVE_TASK_ID, status="in_progress")` 호출.
+
 Build the retrospective context string using the original project dir (not the worktree):
 ```
 [HARNESS SESSION: <session-id>]
@@ -816,18 +865,20 @@ except json.JSONDecodeError as e:
 PYEOF
 ```
 
+validation 통과 시 `TaskUpdate(taskId=$RETROSPECTIVE_TASK_ID, status="completed")` 호출.
+
 If the retrospective fails for any reason, output:
 ```
 ⚠️ retrospective 저장 실패 — 교훈이 누적되지 않습니다. Step 11을 계속 진행합니다.
 ```
 
-Then proceed immediately to Step 11.
+retrospective는 non-blocking이므로 실패 시에도 태스크를 `completed`로 표시(워크플로우는 계속 진행). 그 후 Step 11로 진행한다.
 
 ## Step 11: 자동 커밋 및 PR 생성
 
 리뷰 결과가 PASS 또는 SKIPPED이고 worktree가 생성된 경우에만 실행.
 
-Step 11 진입 시 session.env를 로드하여 BASE_BRANCH 등 Step 6.5에서 캡처한 값을 복원한다:
+Step 11 진입 시 `TaskUpdate(taskId=$PR_TASK_ID, status="in_progress")` 호출 후 session.env를 로드하여 BASE_BRANCH 등 Step 6.5에서 캡처한 값을 복원한다:
 ```bash
 [ -f "$SESSION_DIR/session.env" ] && . "$SESSION_DIR/session.env"
 ```
@@ -886,6 +937,8 @@ fi
 git push origin "harness/$SESSION_ID"
 gh pr create --base "$BASE_BRANCH" --head "harness/$SESSION_ID" --title "$PR_TITLE" --body "$PR_BODY"
 ```
+
+PR이 생성되거나 사용자가 취소를 선택해 Step 11이 종결되면 `TaskUpdate(taskId=$PR_TASK_ID, status="completed")` 호출.
 
 **사용자가 취소 옵션 선택 시:** push/PR 생성을 중단하고 worktree를 그대로 남긴다. 사용자가 추후 직접 PR을 만들 수 있도록 브랜치명·제목·본문을 다시 출력한다.
 

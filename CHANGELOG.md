@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.20.0
+
+- feat(harness): 파이프라인 단계를 `TaskCreate`/`TaskUpdate`로 가시화 — 사용자가 진행 상황을 실시간으로 확인
+- `plugins/harness/skills/harness/SKILL.md`:
+  - Step 1.6 신설 — 모드별 (simple 2개 / medium 6개 / complex 8개) 태스크를 모드 결정 직후 일괄 생성하고 task id를 `<ROLE>_TASK_ID` 변수로 보관 (역할: investigator, architect, challenger, choice, implementer, reviewer, retrospective, pr)
+  - 각 단계 진입 banner 직후 `TaskUpdate(in_progress)` 호출 안내 삽입 (Step 2 investigator, Step 3 architect, Step 4 challenger, Step 5 choice, Step 7 implementer, Step 9 reviewer, Step 10.5 retrospective, Step 11 pr)
+  - 각 단계 완료(파일 검증 통과·반환 보고서 OK·사용자 응답 수신) 시 `TaskUpdate(completed)` 호출 안내 삽입
+  - 중단·실패 케이스는 태스크를 `in_progress`로 남겨 사용자가 멈춘 지점을 파악할 수 있도록 명시. retrospective는 non-blocking이므로 실패 시에도 `completed`로 표시
+  - 스킬 frontmatter `version`: `0.3.0` → `0.4.0`
+
 ## 0.19.0
 
 - feat(harness): orchestrator 사용자 응답 지점 4곳을 `AskUserQuestion` 도구 호출로 전환
