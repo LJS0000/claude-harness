@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.25.2
+
+- fix(hook): `block_dangerous.py`가 인용 안 텍스트(commit 메시지·PR 제목/본문·echo 인자 등)에서도 위험 패턴을 매칭해 차단하던 false positive 수정
+  - `strip_quoted()` 함수 추가 — 검사 직전 큰따옴표/작은따옴표 내부 텍스트를 빈 인용으로 치환하여 셸 메타 데이터를 검사 대상에서 제외
+  - `bash -c`·`sh -c`·`eval`·`python -c`·`node -e`로 시작하는 셸 우회 래퍼는 인용된 인자가 실제 실행 명령이므로 변환 없이 그대로 검사
+  - backtick·`$(...)` 명령 치환 구문은 그대로 둠 (그 안 위험 패턴은 검사됨)
+- test(hook): `plugins/harness/tests/test_block_dangerous.sh` 신규 — 21케이스 자동 검증 스크립트로 회귀 방지 (직접 위험 9개, false positive 통과 7개, 셸 우회 4개, 단일 따옴표 1개)
+
 ## 0.25.1
 
 - fix(hook): `block_dangerous.py`의 `git branch -D` 패턴이 `re.IGNORECASE`로 매칭되어 안전 삭제인 `git branch -d`까지 차단하던 false positive 수정
