@@ -14,7 +14,7 @@ BLOCKED_PATTERNS = [
     (r"git\s+clean\s+-.*f", "git clean -f는 추적되지 않은 파일을 영구 삭제합니다"),
     (r"git\s+checkout\s+\.\s*$", "git checkout .은 모든 변경사항을 삭제합니다"),
     (r"git\s+stash\s+drop", "git stash drop은 스태시를 영구 삭제합니다"),
-    (r"git\s+branch\s+-D", "git branch -D는 브랜치를 강제 삭제합니다"),
+    (r"git\s+branch\s+(?-i:-D)\b", "git branch -D는 브랜치를 강제 삭제합니다"),
 
     # 데이터베이스 파괴 차단
     (r"DROP\s+(DATABASE|TABLE)", "DROP은 데이터를 영구 삭제합니다"),
