@@ -45,6 +45,10 @@ Work in this order:
 - If the problem is ambiguous, list all candidate areas ranked by likelihood (1 = most likely).
 - Do not speculate beyond what the code and git history show.
 - If you cannot find the problem area, say so explicitly rather than guessing.
+- **Bug fix = root cause**: 버그 원인 후보를 찾았으면 해당 심볼·함수·필드의 **모든 호출자**를 grep하라. 증상이 발생하는 지점만 보고하지 말고, 동일 원인으로 영향받을 수 있는 코드 경로 전체를 "문제 영역" 표에 나열한다.
+  ```bash
+  grep -rn "<symbol>" <project-dir> --include="*.ts" --include="*.js"
+  ```
 
 ## Output
 

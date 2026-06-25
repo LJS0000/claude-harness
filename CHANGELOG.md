@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.25.0
+
+- feat(harness): ponytail 분석 기반 5개 항목 통합 — 사다리 원칙, bug-fix 규칙, review 태그, ponytail: 주석 컨벤션, harness-debt 스킬 (출처: ponytail, MIT License, DietrichGebert/ponytail)
+- `plugins/harness/agents/architect.md`:
+  - Planning principles에 ponytail 7단계 사다리 추가 (1. Delete dead code → 7. New external dependency)
+  - "Never simplify away" 예외 목록 사다리와 함께 명기 (입력 검증·에러 핸들링·보안·접근성·명시 요청 기능)
+  - "Bug fix = root cause" 원칙 추가 — 모든 호출자를 grep한 뒤 계획 수립
+- `plugins/harness/agents/investigator.md`:
+  - Rules에 "Bug fix = root cause" 추가 — 증상 지점만이 아니라 호출자 전체를 grep하여 문제 영역 표에 나열
+- `plugins/harness/agents/reviewer.md`:
+  - 코드 품질 체크리스트에 "Lazy check" sub-item 추가 — 비자명 로직에 최소 runnable check 1개 요구
+  - ponytail-review 5개 태그 섹션 추가 (delete:/stdlib:/native:/yagni:/shrink:) — 보고 전용, 기존 비계획 제거 FAIL 가드 유지
+- `plugins/harness/agents/implementer.md`:
+  - Principles에 `ponytail:` 주석 컨벤션 추가 — `// ponytail: <ceiling>, <upgrade path>` 형식
+- `plugins/harness/skills/harness-debt/SKILL.md` (신규):
+  - `/harness-debt` 트리거로 호출
+  - `grep -rnE '(#|//|--) ?ponytail:'` 로 전체 프로젝트 스캔
+  - 파일별 그룹화 후 1회성 콘솔 보고, 코드 변경 없음
+
 ## 0.24.0
 
 - feat(harness): 파이프라인 종료 시 "쉽게 말하면" 블록을 강제로 출력하는 Step 12 신설 — 응답을 빠르게 훑어도 중요한 변경이나 후속 조치를 놓치지 않도록 하는 안전망
