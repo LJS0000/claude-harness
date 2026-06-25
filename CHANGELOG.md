@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.25.1
+
+- fix(hook): `block_dangerous.py`의 `git branch -D` 패턴이 `re.IGNORECASE`로 매칭되어 안전 삭제인 `git branch -d`까지 차단하던 false positive 수정
+  - 패턴을 `r"git\s+branch\s+(?-i:-D)\b"`로 변경 — 인라인 case-sensitive flag로 대문자 `-D`만 매칭, 워드 경계로 `-Dabc` 가짜 매칭 방지
+  - 다른 위험 패턴(`git reset --hard`, SQL `DROP`/`TRUNCATE` 등)은 영향 없음
+  - 8개 케이스 직접 호출 테스트로 동작 확인
+
 ## 0.25.0
 
 - feat(harness): ponytail 분석 기반 5개 항목 통합 — 사다리 원칙, bug-fix 규칙, review 태그, ponytail: 주석 컨벤션, harness-debt 스킬 (출처: ponytail, MIT License, DietrichGebert/ponytail)
