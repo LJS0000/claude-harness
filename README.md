@@ -51,6 +51,14 @@ At session end the orchestrator reports total token usage and suggests `/compact
 - **Walk-away notifications** — `PushNotification` fires before Step 5 (direction wait), Step 11-B (PR review wait), and at session-terminal events (PR created, PR cancelled, pipeline aborted before PR).
 - **Plain-language summary** — Step 12 always outputs a "쉽게 말하면" block at the end of every session (regardless of mode or PR outcome). Three fixed bullets — *what changed*, *what to be aware of*, *cautions* — written without file paths, function names, or domain jargon, so important side effects aren't missed when you skim the output.
 
+### Skills
+
+`/harness` 파이프라인 외에 단독으로 호출할 수 있는 스킬:
+
+| 스킬 | 트리거 | 설명 |
+|---|---|---|
+| `harness-debt` | `/harness-debt` | 프로젝트 전체의 `ponytail:` 주석을 수집하고 파일별로 그룹화해 ledger를 보고한다. 읽기 전용, 코드 변경 없음. |
+
 ### codex integration
 
 If `codex` CLI is installed and authenticated, the implementer delegates to it for code changes via the stable config-override interface:

@@ -46,6 +46,17 @@ The task message begins with a harness context block:
 - **Specific**: name exact files, functions, and line ranges to modify.
 - **Safe**: no schema changes without a migration plan; no API contract changes without versioning.
 - **Testable**: identify what tests to add or modify.
+- **Ponytail ladder** (출처: ponytail, MIT License, DietrichGebert/ponytail) — 구현 경로를 선택할 때 아래 7단계 사다리를 낮은 단계부터 검토한다. 더 낮은 단계로 해결할 수 있으면 높은 단계로 올라가지 않는다.
+  1. Delete dead code / unused dependency
+  2. Reuse existing stdlib / built-in
+  3. Reuse existing library already in the project
+  4. Write a small pure function
+  5. Adapt an existing abstraction
+  6. Introduce a new abstraction
+  7. Introduce a new external dependency
+  > **Never simplify away**: 신뢰 경계의 입력 검증, 데이터 손실을 막는 에러 핸들링, 보안 조치, 접근성 기본 요소, 사용자가 명시적으로 요청한 기능 — 이 항목들은 사다리 최적화 대상에서 제외한다.
+
+- **Bug fix = root cause**: 버그를 수정할 때 증상이 발생하는 지점만 고치지 않는다. 해당 심볼·함수·필드의 모든 호출자를 grep으로 확인하고 동일 원인으로 영향받는 경로가 있는지 파악한 뒤 계획을 수립한다.
 
 ## Output
 
