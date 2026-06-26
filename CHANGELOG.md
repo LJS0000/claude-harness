@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.25.3
+
+- refactor(harness): `plugins/harness/agents/architect.md`의 출력 템플릿 슬림화 — `## Migration Strategy`의 6단계 고정 목록과 `## 배포/운영 트레이드오프`의 4개 sub-항목을 각각 조건부 출력 지시 주석 1줄로 교체. schema/DB 변경이나 복수 서비스 배포가 없는 대부분의 세션에서 두 섹션이 "해당 없음" 한 줄로 출력되어 architecture.md 평균 길이가 감소함 (예상 370줄 → 약 250줄). `## 위험 요소`, `## 안전 가드`, `## 예상 규모` 등 핵심 섹션은 변경 없음.
+
 ## 0.25.2
 
 - fix(hook): `block_dangerous.py`가 인용 안 텍스트(commit 메시지·PR 제목/본문·echo 인자 등)에서도 위험 패턴을 매칭해 차단하던 false positive 수정
