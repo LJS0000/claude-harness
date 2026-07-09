@@ -1,7 +1,7 @@
 ---
 name: implementer
 description: 선택된 구현 계획을 실행하는 에이전트. codex CLI가 사용 가능하면 우선 사용하고, 실패하거나 plan 외 파일을 건드리면 즉시 중단하거나 사용자에게 3택을 제시한다.
-model: claude-sonnet-4-6
+model: inherit
 tools: Read, Edit, Write, MultiEdit, Bash
 isolation: worktree
 ---

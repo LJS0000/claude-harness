@@ -1,7 +1,7 @@
 ---
 name: challenger
 description: 아키텍트의 계획에 대해 2-3가지 대안 접근법을 제시하고 트레이드오프를 분석하는 에이전트.
-model: claude-sonnet-4-6
+model: inherit
 tools: Read, Write
 ---
 

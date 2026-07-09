@@ -20,22 +20,21 @@ Invoke with a natural language problem description:
 
 The orchestrator estimates difficulty and runs a mode-appropriate subset of these agents:
 
-| Agent | Role | Model |
-|---|---|---|
-| `investigator` | Explores the codebase and identifies root cause | `claude-sonnet-4-6` |
-| `architect` | Produces a minimal, safe implementation plan | `claude-sonnet-4-6` |
-| `challenger` | Proposes 2–3 alternative approaches with trade-off analysis (complex only) | `claude-sonnet-4-6` |
-| `implementer` | Executes the chosen plan (codex CLI if available, else Claude) | auto-selected |
-| `reviewer` | Checks the implementation against the approved plan | `claude-sonnet-4-6` |
-| `retrospective` | Saves lessons learned for future sessions (complex only) | `claude-sonnet-4-6` |
+| Agent | Role |
+|---|---|
+| `investigator` | Explores the codebase and identifies root cause |
+| `architect` | Produces a minimal, safe implementation plan |
+| `challenger` | Proposes 2–3 alternative approaches with trade-off analysis (complex only) |
+| `implementer` | Executes the chosen plan (codex CLI if available, else Claude) |
+| `reviewer` | Checks the implementation against the approved plan |
+| `retrospective` | Saves lessons learned for future sessions (complex only) |
 
-The orchestrator runs in the user's session model and selects the implementer model based on difficulty:
+Models are not pinned per agent. The orchestrator decides each agent's model right before invoking it, based on the difficulty mode, the problem scope, and what the previous stage's artifacts revealed. Two rules bound that judgment:
 
-| Difficulty | Criteria | Model |
-|---|---|---|
-| Simple | 1–2 files, config/text/style changes | `claude-haiku-4-5` |
-| Moderate | 2–5 files, general feature work | `claude-sonnet-4-6` |
-| Complex | 5+ files, architecture/algorithm/concurrency | `claude-opus-4-6` |
+- Pipeline agents (investigator through reviewer) never go below `opus` — if the problem is trivial enough for a smaller model, it wouldn't be going through the harness in the first place.
+- Omitting the model makes the agent inherit the session model, so when the session runs on something above opus, judgment-heavy stages (design, review, complex implementation) get that model automatically.
+
+The only exception is `retrospective`, a mechanical summarization role that always runs on `haiku`. Model aliases resolve to the latest generation, so the harness picks up new releases without config changes.
 
 Modes drop steps to match scope: `simple` runs architect → implementer only; `medium` adds investigator + reviewer + PR; `complex` runs everything including challenger and retrospective.
 

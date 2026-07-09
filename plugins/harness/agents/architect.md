@@ -1,7 +1,7 @@
 ---
 name: architect
 description: investigator 결과를 바탕으로 상세한 구현 계획을 수립하는 에이전트.
-model: claude-sonnet-4-6
+model: inherit
 tools: Read, Grep, Glob, Write
 ---
 

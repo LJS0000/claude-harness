@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.26.0
+
+- feat(harness): 에이전트별 고정 모델 지정을 제거하고 오케스트레이터의 동적 모델 배정으로 전환
+  - 모든 에이전트 frontmatter를 `model: claude-sonnet-4-6`(retrospective는 `claude-haiku-4-5`)에서 `model: inherit`로 변경 — 구세대 버전 ID 박제 문제 해소
+  - SKILL.md에 "모델 배정 규칙" 섹션 신설: 오케스트레이터가 각 에이전트 호출 직전에 `$HARNESS_MODE`·문제 범위·직전 단계 산출물을 근거로 `model` 파라미터를 판단해 배정
+  - 파이프라인 롤(investigator~reviewer)의 하한은 `opus` — 하네스를 호출할 정도의 문제면 이미 단순 작업이 아니라는 전제. `model` 생략 시 세션 모델 상속(상한)으로, 세션이 opus보다 상위 모델이면 설계·검수 등 판단 중심 롤이 그 모델을 그대로 사용
+  - retrospective는 기계적 요약 롤이므로 예외적으로 `haiku` 고정
+  - Step 7의 자체 난이도 재평가 표(단순/보통/복잡 → haiku/sonnet/opus 버전 ID 매핑) 제거 — 모델 배정 규칙으로 일원화
+  - README의 에이전트 모델 표를 동적 배정 설명으로 교체
+
 ## 0.25.3
 
 - refactor(harness): `plugins/harness/agents/architect.md`의 출력 템플릿 슬림화 — `## Migration Strategy`의 6단계 고정 목록과 `## 배포/운영 트레이드오프`의 4개 sub-항목을 각각 조건부 출력 지시 주석 1줄로 교체. schema/DB 변경이나 복수 서비스 배포가 없는 대부분의 세션에서 두 섹션이 "해당 없음" 한 줄로 출력되어 architecture.md 평균 길이가 감소함 (예상 370줄 → 약 250줄). `## 위험 요소`, `## 안전 가드`, `## 예상 규모` 등 핵심 섹션은 변경 없음.

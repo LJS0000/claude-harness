@@ -1,7 +1,7 @@
 ---
 name: investigator
 description: 자연어 문제 설명을 받아 문제가 있는 코드 영역(파일, 함수, 라인 번호)을 특정하는 에이전트.
-model: claude-sonnet-4-6
+model: inherit
 tools: Read, Grep, Glob, Bash, Write
 ---
 

@@ -1,7 +1,7 @@
 ---
 name: retrospective
 description: 세션 아티팩트를 분석하여 역할별 교훈을 JSON으로 저장하는 에이전트.
-model: claude-haiku-4-5
+model: inherit
 tools: Read, Write, Bash
 ---
 
