@@ -38,9 +38,14 @@ The only exception is `retrospective`, a mechanical summarization role that alwa
 
 Modes drop steps to match scope: `simple` runs architect → implementer only; `medium` adds investigator + reviewer + PR; `complex` runs everything including challenger and retrospective.
 
+Two principles guard output quality regardless of which models run the pipeline:
+
+- **Evidence gates** — every stage produces runnable evidence, not claims. The investigator reproduces the problem with a command, the architect ends every plan with verification commands, the implementer actually runs them (`verification.txt`), and the reviewer re-runs them independently instead of trusting the implementer's transcript.
+- **Cross-model review** — implementation and review are done by different model families whenever possible. When codex implements, Claude reviews; when Claude implements directly, the reviewer runs an additional read-only codex counter-review and triages its findings as taken/rejected.
+
 At session end the orchestrator reports total token usage and suggests `/compact` when cumulative `cache_read` exceeds 1M tokens.
 
-**Design and review always use Claude.** Only the implementer uses codex CLI (when available).
+**Design always uses Claude.** codex CLI (when available) implements the plan and serves as a second pair of eyes during review.
 
 ### Pipeline UX
 

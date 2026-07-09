@@ -263,6 +263,13 @@ printf "HARNESS_MODE='%s'\n" "$HARNESS_MODE" >> "$SESSION_DIR/session.env"
 - retrospective는 파이프라인 산출물을 요약·기록하는 기계적 롤이므로 예외적으로 `haiku`를 쓴다.
 - 각 에이전트 호출 직전 announce 라인에 배정한 모델(alias 또는 "세션 상속")과 판단 이유 한 줄을 함께 출력한다.
 
+## 품질 해자 원칙
+
+모델은 교체되지만 프로세스는 남는다. 이 파이프라인의 품질은 아래 두 원칙이 지킨다:
+
+1. **증거 게이트** — 각 단계는 주장이 아니라 실행 증거를 산출한다. investigator는 문제를 명령으로 재현하고(재현 증거), architect는 성공을 증명할 명령을 계획에 넣고(검증 계획), implementer는 그 명령을 실제 실행하고(verification.txt), reviewer는 implementer를 신뢰하지 않고 독립 재실행한다. 어느 단계든 "코드를 읽어보니 맞다"는 증거가 아니다.
+2. **교차 모델 검증** — 구현과 검수는 가능한 한 다른 모델 계열이 수행한다. codex가 구현하면 Claude가 검수하고(기본 경로), Claude가 직접 구현하면 reviewer가 codex read-only 교차 검수를 추가로 돌린다. 같은 계열은 같은 맹점을 공유하므로, codex는 구현 도구이자 두 번째 시선이다.
+
 ## Step 1.6: 파이프라인 태스크 생성
 
 `$HARNESS_MODE`에 따라 실행될 단계를 `TaskCreate`로 미리 등록해 사용자가 진행 상황을 실시간으로 본다. 모드별 생성 대상:
@@ -747,6 +754,8 @@ Build the reviewer context string from `context_string_with_worktree`. If `$ADVI
 ```
 
 모델 배정 규칙에 따라 model을 정한 뒤 `Agent("reviewer", context_string_with_worktree, model=<결정값>)`을 호출한다 (세션 상속이면 `model` 생략 — 검수 롤이므로 구현에 쓴 모델과 같거나 더 강한 모델을 쓴다).
+
+reviewer는 plan의 검증 계획을 독립 재실행하고, Claude가 직접 구현한 경우 codex read-only 교차 검수를 추가 수행한다 (품질 해자 원칙 참조). reviewer 보고서의 `Independent verification` / `Cross-model review` 섹션이 비어 있으면 재실행을 요구한다.
 
 reviewer 반환 후 (PASS 또는 FAIL과 무관하게 검수 자체가 완료됐다면) `TaskUpdate(taskId=$REVIEWER_TASK_ID, status="completed")` 호출. 검수 자체가 실행되지 못한 경우(중단)에만 `in_progress` 유지.
 

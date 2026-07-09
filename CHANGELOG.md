@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.27.0
+
+- feat(harness): 증거 게이트 + 교차 모델 검증 도입 — 파이프라인 전 단계가 주장 대신 실행 증거를 산출하도록 강제
+  - investigator: 조사 단계에 "문제 재현 시도" 추가 (비파괴 명령만), investigation.md에 `## 재현 증거` 섹션 신설
+  - architect: 계획 원칙에 **Provable** 추가, architecture.md에 `## 검증 계획` 섹션 신설 (생략 불가, simple 모드는 명령 1개면 충분) — 구현 성공을 증명할 실행 가능한 명령 목록
+  - implementer: Step 5 "검증 실행" 신설 — plan의 검증 계획 명령을 실제 실행해 `verification.txt`에 기록, 실패 시 plan 범위 내 수정 재시도(최대 2회) 후 구현 실패 보고. codex 경로(Step 3-c)와 직접 편집 경로(Step 4) 모두 통과. 완료 보고에 `## 검증 결과` 섹션 추가
+  - reviewer: 적대적 검수 원칙 명시("반박 시도 실패 시에만 PASS"), 독립 검증(implementer 기록을 신뢰하지 않고 검증 계획 재실행), Claude가 직접 구현한 경우 codex read-only 교차 검수 실행(non-blocking) — codex 지적사항은 단서로 취급해 taken/rejected 분류. 출력 형식에 `Independent verification` / `Cross-model review` 섹션 추가
+  - SKILL.md: "품질 해자 원칙" 섹션 신설 (증거 게이트 + 교차 모델 검증), Step 9에 reviewer 독립 검증·교차 검수 게이트 추가
+  - codex 역할 확장: 구현 도구에서 구현 도구 + 검수 시 두 번째 시선으로 — 같은 모델 계열의 공유 맹점을 교차로 보완
+
 ## 0.26.0
 
 - feat(harness): 에이전트별 고정 모델 지정을 제거하고 오케스트레이터의 동적 모델 배정으로 전환
