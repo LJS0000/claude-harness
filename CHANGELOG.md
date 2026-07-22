@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.28.0
+
+- feat(harness)!: harness-debt 스킬과 ponytail 주석 컨벤션 제거
+
+  BREAKING CHANGE: `/harness-debt` 명령과 `ponytail:` 주석 수집 기능을 제거함.
+
+  - `plugins/harness/skills/harness-debt/` 스킬 전체 제거 — 기술 부채는 프로젝트 리포 Issue로 관리하는 방향으로 전환
+  - implementer: `ponytail:` 주석 컨벤션(기술 부채/성능 상한선 표기) 제거
+  - reviewer: `ponytail-review` 보고 태그 제거 — 부채 수집 서브시스템이 사라져 dangling 상태가 되므로 함께 정리
+  - README: Skills 섹션(harness-debt 행) 제거
+  - architect의 "Ponytail ladder"(구현 경로 판단 휴리스틱)는 유지 — 부채 수집과 무관한 독립 판단 기준임
+
+
 ## 0.27.0
 
 - feat(harness): 증거 게이트 + 교차 모델 검증 도입 — 파이프라인 전 단계가 주장 대신 실행 증거를 산출하도록 강제

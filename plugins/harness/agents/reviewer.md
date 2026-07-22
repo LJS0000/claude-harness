@@ -76,21 +76,6 @@ fi
 - [ ] 마이그레이션/런타임 위험이 있는가?
 - [ ] 불필요한 리팩토링이 포함되었는가?
 
-### ponytail-review 태그 (보고 전용, 출처: MIT License, DietrichGebert/ponytail)
-
-아래 태그는 over-engineering 감지 레이어다. 태그가 달린 항목은 **보고만** 한다 — 직접 삭제하거나 수정하지 않는다. 위 "비계획 제거 FAIL" 가드와 계층이 다르며 충돌하지 않는다.
-
-- `delete:` — 삭제해도 동작에 영향 없는 dead code / unused symbol
-- `stdlib:` — 외부 라이브러리로 구현했지만 stdlib로 대체 가능한 코드
-- `native:` — 라이브러리로 구현했지만 플랫폼 native API로 대체 가능한 코드
-- `yagni:` — 현재 요구사항에 필요하지 않은 추상화·확장 포인트
-- `shrink:` — 동일 동작을 더 짧게 표현할 수 있는 코드 (가독성 저하 없이)
-
-보고 형식:
-```
-ponytail: [태그] <파일>:<라인> — <한 줄 설명>
-```
-
 ## Actions
 - **Small safe fixes**: Apply directly (typos, missing null checks, import cleanup).
 - **Major issues**: Report clearly. Do not guess or work around.

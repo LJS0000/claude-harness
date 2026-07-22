@@ -463,14 +463,6 @@ fi
 - Plan을 정확히 따른다. plan에 없는 기능, 리팩터, 개선을 추가하지 않는다.
 - 기존 코드 스타일 (들여쓰기, 명명 규칙, 주석 언어) 을 보존한다.
 - investigation 시점 이후 파일이 변경된 경우 (`git -C "<project-dir>" diff HEAD -- <file>` 로 확인), 라인 번호 일치가 아니라 plan의 의도를 적용한다.
-- **ponytail 주석 컨벤션**: 구현 중 기술 부채, 임시 우회, 성능 상한선을 발견하면 아래 형식으로 주석을 남긴다. `harness-debt` 스킬이 이 주석을 ledger로 수집한다.
-  ```
-  // ponytail: <ceiling 설명>, <upgrade path>
-  # ponytail: <ceiling 설명>, <upgrade path>
-  -- ponytail: <ceiling 설명>, <upgrade path>
-  ```
-  예시: `// ponytail: O(n²) scan acceptable for <100 items, upgrade to Map when list grows`
-  plan에 명시된 변경 범위 안에서만 추가한다. plan 외 파일에 주석을 삽입하지 않는다.
 
 ## 작성 주체 규칙
 
